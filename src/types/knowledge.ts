@@ -1,23 +1,31 @@
-export interface KnowledgeNode {
-  id: string;
-  title: string;
-  description?: string;
-  type: 'category' | 'item';
-  icon?: string;
-  tags?: string[];
-  children?: KnowledgeNode[];
-  metadata?: {
-    createdAt?: string;
-    updatedAt?: string;
-    author?: string;
-  };
+export interface RelatedDomain {
+  name: string;
+  type: string;
+  file: string;
+  file_path: string;
+  query: string | boolean;
+  related_domains: RelatedDomain[];
 }
 
+export interface ProcessDomain {
+  name: string;
+  type: string;
+  query: string | boolean;
+  charpter: string;
+  related_domains: RelatedDomain[];
+}
+
+export interface KnowledgeTree {
+  file: string;
+  file_path: string;
+  process_domains: ProcessDomain[];
+}
+
+export type KnowledgeNode = ProcessDomain | RelatedDomain;
+
 export interface TreeContextType {
-  selectedNode: KnowledgeNode | null;
-  setSelectedNode: (node: KnowledgeNode | null) => void;
-  updateNode: (id: string, updates: Partial<KnowledgeNode>) => void;
-  addNode: (parentId: string | null) => void;
-  deleteNode: (id: string) => void;
-  moveNode: (nodeId: string, targetParentId: string | null, targetIndex: number) => void;
+  tree: KnowledgeTree;
+  setTree: React.Dispatch<React.SetStateAction<KnowledgeTree>>;
+  selectedNode: { node: KnowledgeNode; path: string } | null;
+  setSelectedNode: (selection: { node: KnowledgeNode; path: string } | null) => void;
 }
