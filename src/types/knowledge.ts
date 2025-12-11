@@ -3,14 +3,14 @@ export interface RelatedDomain {
   type: string;
   file: string;
   file_path: string;
-  query: string | boolean;
+  query: string | false;
   related_domains: RelatedDomain[];
 }
 
 export interface ProcessDomain {
   name: string;
   type: string;
-  query: string | boolean;
+  query: string;
   charpter: string;
   related_domains: RelatedDomain[];
 }
@@ -27,5 +27,7 @@ export interface TreeContextType {
   tree: KnowledgeTree;
   setTree: React.Dispatch<React.SetStateAction<KnowledgeTree>>;
   selectedNode: { node: KnowledgeNode; path: string } | null;
-  setSelectedNode: (selection: { node: KnowledgeNode; path: string } | null) => void;
+  setSelectedNode: React.Dispatch<React.SetStateAction<{ node: KnowledgeNode; path: string } | null>>;
+  addRelatedDomainByPath: (path: string) => void;
+  deleteRelatedDomainByPath: (path: string) => void;
 }

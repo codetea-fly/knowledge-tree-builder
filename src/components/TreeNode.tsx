@@ -26,21 +26,25 @@ interface RelatedNodeProps {
   node: RelatedDomain;
   depth: number;
   path: string;
-  onDelete: () => void;
-  onAddChild: () => void;
 }
 
 export const RelatedDomainNode: React.FC<RelatedNodeProps> = ({
   node,
   depth,
   path,
-  onDelete,
-  onAddChild,
 }) => {
-  const { selectedNode, setSelectedNode } = useTree();
+  const { selectedNode, setSelectedNode, addRelatedDomainByPath, deleteRelatedDomainByPath } = useTree();
   const [isExpanded, setIsExpanded] = useState(true);
   const hasChildren = node.related_domains && node.related_domains.length > 0;
   const isSelected = selectedNode?.path === path;
+
+  const handleAddChild = () => {
+    addRelatedDomainByPath(path);
+  };
+
+  const handleDelete = () => {
+    deleteRelatedDomainByPath(path);
+  };
 
   return (
     <div className="animate-fade-in">
@@ -88,7 +92,7 @@ export const RelatedDomainNode: React.FC<RelatedNodeProps> = ({
             className="h-6 w-6"
             onClick={(e) => {
               e.stopPropagation();
-              onAddChild();
+              handleAddChild();
             }}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -99,7 +103,7 @@ export const RelatedDomainNode: React.FC<RelatedNodeProps> = ({
             className="h-6 w-6 text-destructive hover:text-destructive"
             onClick={(e) => {
               e.stopPropagation();
-              onDelete();
+              handleDelete();
             }}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -119,19 +123,6 @@ export const RelatedDomainNode: React.FC<RelatedNodeProps> = ({
               node={child}
               depth={depth + 1}
               path={`${path}.related_domains[${idx}]`}
-              onDelete={() => {
-                node.related_domains.splice(idx, 1);
-              }}
-              onAddChild={() => {
-                child.related_domains.push({
-                  name: '新关联域',
-                  type: '企业过程域',
-                  file: '',
-                  file_path: '',
-                  query: false,
-                  related_domains: [],
-                });
-              }}
             />
           ))}
         </div>
@@ -139,7 +130,6 @@ export const RelatedDomainNode: React.FC<RelatedNodeProps> = ({
     </div>
   );
 };
-
 export const ProcessDomainNode: React.FC<ProcessNodeProps> = ({
   node,
   index,
@@ -229,19 +219,6 @@ export const ProcessDomainNode: React.FC<ProcessNodeProps> = ({
               node={child}
               depth={1}
               path={`${path}.related_domains[${idx}]`}
-              onDelete={() => {
-                node.related_domains.splice(idx, 1);
-              }}
-              onAddChild={() => {
-                child.related_domains.push({
-                  name: '新关联域',
-                  type: '企业过程域',
-                  file: '',
-                  file_path: '',
-                  query: false,
-                  related_domains: [],
-                });
-              }}
             />
           ))}
         </div>
