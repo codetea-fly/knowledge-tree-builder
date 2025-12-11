@@ -3,6 +3,7 @@ import { useTree } from '@/context/TreeContext';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import { KnowledgeTree } from '@/types/knowledge';
 
 export const JsonPreview: React.FC = () => {
   const { tree, setTree } = useTree();
@@ -22,7 +23,7 @@ export const JsonPreview: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'knowledge-tree.json';
+    a.download = 'knowledge.json';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -39,9 +40,13 @@ export const JsonPreview: React.FC = () => {
       if (file) {
         try {
           const text = await file.text();
-          const data = JSON.parse(text);
-          setTree(data);
-          toast.success('JSON 文件已导入');
+          const data = JSON.parse(text) as KnowledgeTree;
+          if (data.file !== undefined && data.process_domains !== undefined) {
+            setTree(data);
+            toast.success('JSON 文件已导入');
+          } else {
+            toast.error('JSON 格式不正确，需要包含 file 和 process_domains 字段');
+          }
         } catch {
           toast.error('无效的 JSON 文件');
         }
@@ -74,7 +79,7 @@ export const JsonPreview: React.FC = () => {
         </div>
       </div>
       <div className="flex-1 overflow-auto p-4">
-        <pre className="text-xs font-mono text-muted-foreground bg-muted/50 rounded-lg p-4 overflow-x-auto">
+        <pre className="text-xs font-mono text-muted-foreground bg-muted/50 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap">
           <code>{jsonString}</code>
         </pre>
       </div>

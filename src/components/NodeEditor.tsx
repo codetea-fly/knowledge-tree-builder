@@ -2,31 +2,16 @@ import React from 'react';
 import { useTree } from '@/context/TreeContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { X, Tag, FileText, Folder } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { ProcessDomain, RelatedDomain } from '@/types/knowledge';
+import { Folder, Link, FileText } from 'lucide-react';
 
-const iconOptions = [
-  { value: 'folder', label: '📁 文件夹' },
-  { value: 'file-text', label: '📄 文档' },
-  { value: 'code', label: '💻 代码' },
-  { value: 'server', label: '🖥️ 服务器' },
-  { value: 'database', label: '🗄️ 数据库' },
-  { value: 'book', label: '📚 书籍' },
-  { value: 'lightbulb', label: '💡 想法' },
-];
+const isProcessDomain = (node: ProcessDomain | RelatedDomain): node is ProcessDomain => {
+  return 'charpter' in node;
+};
 
 export const NodeEditor: React.FC = () => {
-  const { selectedNode, updateNode } = useTree();
-  const [newTag, setNewTag] = React.useState('');
+  const { selectedNode, tree, setTree } = useTree();
 
   if (!selectedNode) {
     return (
@@ -42,143 +27,157 @@ export const NodeEditor: React.FC = () => {
     );
   }
 
-  const handleAddTag = () => {
-    if (newTag.trim() && !selectedNode.tags?.includes(newTag.trim())) {
-      updateNode(selectedNode.id, {
-        tags: [...(selectedNode.tags || []), newTag.trim()],
-      });
-      setNewTag('');
-    }
-  };
+  const { node, path } = selectedNode;
+  const isPD = isProcessDomain(node);
 
-  const handleRemoveTag = (tagToRemove: string) => {
-    updateNode(selectedNode.id, {
-      tags: selectedNode.tags?.filter((tag) => tag !== tagToRemove),
-    });
+  const updateNodeField = (field: string, value: string | boolean) => {
+    const newTree = JSON.parse(JSON.stringify(tree));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pathParts = path.match(/(\w+)\[(\d+)\]|\w+/g) || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let current: any = newTree;
+    
+    for (let i = 0; i < pathParts.length - 1; i++) {
+      const part = pathParts[i];
+      const match = part.match(/(\w+)\[(\d+)\]/);
+      if (match) {
+        current = current[match[1]][parseInt(match[2])];
+      } else {
+        current = current[part];
+      }
+    }
+    
+    const lastPart = pathParts[pathParts.length - 1];
+    const lastMatch = lastPart.match(/(\w+)\[(\d+)\]/);
+    if (lastMatch) {
+      current[lastMatch[1]][parseInt(lastMatch[2])][field] = value;
+    } else {
+      current[lastPart][field] = value;
+    }
+    
+    setTree(newTree);
   };
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
       <div className="flex items-center gap-3 pb-4 border-b border-border">
         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-          {selectedNode.type === 'category' ? (
+          {isPD ? (
             <Folder className="h-5 w-5 text-primary" />
           ) : (
-            <FileText className="h-5 w-5 text-primary" />
+            <Link className="h-5 w-5 text-accent" />
           )}
         </div>
         <div>
-          <h3 className="font-semibold text-foreground">编辑节点</h3>
-          <p className="text-xs text-muted-foreground">ID: {selectedNode.id}</p>
+          <h3 className="font-semibold text-foreground">
+            {isPD ? '编辑过程域' : '编辑关联域'}
+          </h3>
+          <p className="text-xs text-muted-foreground">路径: {path}</p>
         </div>
       </div>
 
-      {/* Title */}
+      {/* Name */}
       <div className="space-y-2">
-        <Label htmlFor="title" className="text-sm font-medium">
-          节点标题
+        <Label htmlFor="name" className="text-sm font-medium">
+          名称 (name)
         </Label>
         <Input
-          id="title"
-          value={selectedNode.title}
-          onChange={(e) => updateNode(selectedNode.id, { title: e.target.value })}
-          placeholder="输入节点标题"
+          id="name"
+          value={node.name}
+          onChange={(e) => updateNodeField('name', e.target.value)}
+          placeholder="输入名称"
           className="bg-background"
-        />
-      </div>
-
-      {/* Description */}
-      <div className="space-y-2">
-        <Label htmlFor="description" className="text-sm font-medium">
-          描述
-        </Label>
-        <Textarea
-          id="description"
-          value={selectedNode.description || ''}
-          onChange={(e) => updateNode(selectedNode.id, { description: e.target.value })}
-          placeholder="输入节点描述..."
-          rows={3}
-          className="bg-background resize-none"
         />
       </div>
 
       {/* Type */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium">节点类型</Label>
-        <Select
-          value={selectedNode.type}
-          onValueChange={(value: 'category' | 'item') =>
-            updateNode(selectedNode.id, { type: value })
-          }
-        >
-          <SelectTrigger className="bg-background">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="category">📁 分类目录</SelectItem>
-            <SelectItem value="item">📄 知识条目</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Icon */}
-      <div className="space-y-2">
-        <Label className="text-sm font-medium">图标</Label>
-        <Select
-          value={selectedNode.icon || 'file-text'}
-          onValueChange={(value) => updateNode(selectedNode.id, { icon: value })}
-        >
-          <SelectTrigger className="bg-background">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {iconOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Tags */}
-      <div className="space-y-2">
-        <Label className="text-sm font-medium flex items-center gap-2">
-          <Tag className="h-4 w-4" />
-          标签
+        <Label htmlFor="type" className="text-sm font-medium">
+          类型 (type)
         </Label>
-        <div className="flex gap-2">
+        <Input
+          id="type"
+          value={node.type}
+          onChange={(e) => updateNodeField('type', e.target.value)}
+          placeholder="如: ISO 9000过程组"
+          className="bg-background"
+        />
+      </div>
+
+      {/* Chapter (only for ProcessDomain) */}
+      {isPD && (
+        <div className="space-y-2">
+          <Label htmlFor="charpter" className="text-sm font-medium">
+            章节 (charpter)
+          </Label>
           <Input
-            value={newTag}
-            onChange={(e) => setNewTag(e.target.value)}
-            placeholder="添加标签..."
+            id="charpter"
+            value={(node as ProcessDomain).charpter}
+            onChange={(e) => updateNodeField('charpter', e.target.value)}
+            placeholder="如: 8.7"
             className="bg-background"
-            onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
           />
-          <Button onClick={handleAddTag} size="sm">
-            添加
-          </Button>
         </div>
-        {selectedNode.tags && selectedNode.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {selectedNode.tags.map((tag) => (
-              <Badge
-                key={tag}
-                variant="secondary"
-                className="flex items-center gap-1 px-2 py-1"
-              >
-                {tag}
-                <button
-                  onClick={() => handleRemoveTag(tag)}
-                  className="ml-1 hover:text-destructive"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
+      )}
+
+      {/* Query */}
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">查询条件 (query)</Label>
+        <div className="flex items-center gap-3">
+          <Switch
+            checked={typeof node.query === 'string'}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                updateNodeField('query', '');
+              } else {
+                updateNodeField('query', false);
+              }
+            }}
+          />
+          <span className="text-sm text-muted-foreground">
+            {typeof node.query === 'string' ? '使用查询字符串' : '禁用查询'}
+          </span>
+        </div>
+        {typeof node.query === 'string' && (
+          <Input
+            value={node.query}
+            onChange={(e) => updateNodeField('query', e.target.value)}
+            placeholder="输入查询关键词"
+            className="bg-background mt-2"
+          />
         )}
       </div>
+
+      {/* File (only for RelatedDomain) */}
+      {!isPD && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="file" className="text-sm font-medium">
+              文件名 (file)
+            </Label>
+            <Input
+              id="file"
+              value={(node as RelatedDomain).file}
+              onChange={(e) => updateNodeField('file', e.target.value)}
+              placeholder="如: GJB 571A-2024"
+              className="bg-background"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="file_path" className="text-sm font-medium">
+              文件路径 (file_path)
+            </Label>
+            <Input
+              id="file_path"
+              value={(node as RelatedDomain).file_path}
+              onChange={(e) => updateNodeField('file_path', e.target.value)}
+              placeholder="输入完整文件路径"
+              className="bg-background"
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 };

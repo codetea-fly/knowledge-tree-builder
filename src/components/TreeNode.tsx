@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { KnowledgeNode } from '@/types/knowledge';
+import { ProcessDomain, RelatedDomain } from '@/types/knowledge';
 import { useTree } from '@/context/TreeContext';
 import { cn } from '@/lib/utils';
 import {
@@ -13,63 +11,39 @@ import {
   GripVertical,
   Plus,
   Trash2,
-  Code,
-  Server,
-  Database,
-  Book,
-  Lightbulb,
+  Link,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const iconMap: Record<string, React.ElementType> = {
-  folder: Folder,
-  'folder-open': FolderOpen,
-  'file-text': FileText,
-  code: Code,
-  server: Server,
-  database: Database,
-  book: Book,
-  lightbulb: Lightbulb,
-};
-
-interface TreeNodeProps {
-  node: KnowledgeNode;
-  depth: number;
-  parentId: string | null;
+interface ProcessNodeProps {
+  node: ProcessDomain;
+  index: number;
+  onDelete: () => void;
+  onAddRelated: () => void;
 }
 
-export const TreeNodeComponent: React.FC<TreeNodeProps> = ({ node, depth, parentId }) => {
-  const { selectedNode, setSelectedNode, addNode, deleteNode } = useTree();
+interface RelatedNodeProps {
+  node: RelatedDomain;
+  depth: number;
+  path: string;
+  onDelete: () => void;
+  onAddChild: () => void;
+}
+
+export const RelatedDomainNode: React.FC<RelatedNodeProps> = ({
+  node,
+  depth,
+  path,
+  onDelete,
+  onAddChild,
+}) => {
+  const { selectedNode, setSelectedNode } = useTree();
   const [isExpanded, setIsExpanded] = useState(true);
-  const hasChildren = node.children && node.children.length > 0;
-  const isSelected = selectedNode?.id === node.id;
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: node.id,
-    data: {
-      type: 'tree-node',
-      node,
-      parentId,
-    },
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  const IconComponent = iconMap[node.icon || 'file-text'] || FileText;
-  const FolderIcon = isExpanded ? FolderOpen : Folder;
+  const hasChildren = node.related_domains && node.related_domains.length > 0;
+  const isSelected = selectedNode?.path === path;
 
   return (
-    <div ref={setNodeRef} style={style} className={cn('animate-fade-in', isDragging && 'opacity-50')}>
+    <div className="animate-fade-in">
       <div
         className={cn(
           'group flex items-center gap-1 py-1.5 px-2 rounded-lg cursor-pointer transition-all duration-200',
@@ -77,19 +51,13 @@ export const TreeNodeComponent: React.FC<TreeNodeProps> = ({ node, depth, parent
           isSelected && 'bg-tree-selected border border-primary/30'
         )}
         style={{ paddingLeft: `${depth * 20 + 8}px` }}
-        onClick={() => setSelectedNode(node)}
+        onClick={() => setSelectedNode({ node, path })}
       >
-        {/* Drag Handle */}
-        <button
-          {...attributes}
-          {...listeners}
-          className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing p-0.5 hover:bg-muted rounded transition-opacity"
-        >
+        <div className="opacity-0 group-hover:opacity-100 p-0.5 cursor-grab">
           <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </button>
+        </div>
 
-        {/* Expand/Collapse */}
-        {node.type === 'category' ? (
+        {hasChildren ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -107,38 +75,31 @@ export const TreeNodeComponent: React.FC<TreeNodeProps> = ({ node, depth, parent
           <div className="w-5" />
         )}
 
-        {/* Icon */}
-        {node.type === 'category' ? (
-          <FolderIcon className="h-4 w-4 text-primary shrink-0" />
-        ) : (
-          <IconComponent className="h-4 w-4 text-muted-foreground shrink-0" />
-        )}
+        <Link className="h-4 w-4 text-accent shrink-0" />
+        <span className="flex-1 text-sm font-medium truncate">{node.name}</span>
+        <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-muted rounded">
+          {node.type}
+        </span>
 
-        {/* Title */}
-        <span className="flex-1 text-sm font-medium truncate">{node.title}</span>
-
-        {/* Actions */}
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          {node.type === 'category' && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={(e) => {
-                e.stopPropagation();
-                addNode(node.id);
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddChild();
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
             className="h-6 w-6 text-destructive hover:text-destructive"
             onClick={(e) => {
               e.stopPropagation();
-              deleteNode(node.id);
+              onDelete();
             }}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -146,19 +107,141 @@ export const TreeNodeComponent: React.FC<TreeNodeProps> = ({ node, depth, parent
         </div>
       </div>
 
-      {/* Children */}
       {isExpanded && hasChildren && (
         <div className="relative">
           <div
             className="absolute left-0 top-0 bottom-0 border-l-2 border-dashed border-tree-line"
             style={{ marginLeft: `${depth * 20 + 20}px` }}
           />
-          {node.children!.map((child) => (
-            <TreeNodeComponent
-              key={child.id}
+          {node.related_domains.map((child, idx) => (
+            <RelatedDomainNode
+              key={`${path}.related_domains[${idx}]`}
               node={child}
               depth={depth + 1}
-              parentId={node.id}
+              path={`${path}.related_domains[${idx}]`}
+              onDelete={() => {
+                node.related_domains.splice(idx, 1);
+              }}
+              onAddChild={() => {
+                child.related_domains.push({
+                  name: '新关联域',
+                  type: '企业过程域',
+                  file: '',
+                  file_path: '',
+                  query: false,
+                  related_domains: [],
+                });
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const ProcessDomainNode: React.FC<ProcessNodeProps> = ({
+  node,
+  index,
+  onDelete,
+  onAddRelated,
+}) => {
+  const { selectedNode, setSelectedNode } = useTree();
+  const [isExpanded, setIsExpanded] = useState(true);
+  const hasChildren = node.related_domains && node.related_domains.length > 0;
+  const path = `process_domains[${index}]`;
+  const isSelected = selectedNode?.path === path;
+
+  return (
+    <div className="animate-fade-in">
+      <div
+        className={cn(
+          'group flex items-center gap-1 py-2 px-2 rounded-lg cursor-pointer transition-all duration-200',
+          'hover:bg-tree-hover',
+          isSelected && 'bg-tree-selected border border-primary/30'
+        )}
+        onClick={() => setSelectedNode({ node, path })}
+      >
+        <div className="opacity-0 group-hover:opacity-100 p-0.5 cursor-grab">
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+          className="p-0.5 hover:bg-muted rounded transition-colors"
+        >
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+
+        {isExpanded ? (
+          <FolderOpen className="h-4 w-4 text-primary shrink-0" />
+        ) : (
+          <Folder className="h-4 w-4 text-primary shrink-0" />
+        )}
+
+        <span className="flex-1 text-sm font-semibold truncate">{node.name}</span>
+        <span className="text-xs text-primary-foreground bg-primary px-1.5 py-0.5 rounded">
+          {node.charpter}
+        </span>
+        <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-muted rounded ml-1">
+          {node.type}
+        </span>
+
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddRelated();
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-destructive hover:text-destructive"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {isExpanded && hasChildren && (
+        <div className="relative ml-4">
+          <div className="absolute left-4 top-0 bottom-0 border-l-2 border-dashed border-tree-line" />
+          {node.related_domains.map((child, idx) => (
+            <RelatedDomainNode
+              key={`${path}.related_domains[${idx}]`}
+              node={child}
+              depth={1}
+              path={`${path}.related_domains[${idx}]`}
+              onDelete={() => {
+                node.related_domains.splice(idx, 1);
+              }}
+              onAddChild={() => {
+                child.related_domains.push({
+                  name: '新关联域',
+                  type: '企业过程域',
+                  file: '',
+                  file_path: '',
+                  query: false,
+                  related_domains: [],
+                });
+              }}
             />
           ))}
         </div>
