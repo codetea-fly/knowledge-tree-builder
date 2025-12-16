@@ -7,7 +7,6 @@ import {
   Settings,
   FileText,
   Database,
-  Bot,
   Plus,
   LucideIcon,
 } from 'lucide-react';
@@ -28,22 +27,16 @@ export const CONFIG_ITEMS: ConfigItem[] = [
     description: '配置知识库的树状结构',
   },
   {
-    id: 'system-prompt',
-    name: '系统提示词',
-    icon: Bot,
-    description: 'AI对话的系统提示词配置',
+    id: 'template',
+    name: '模板配置',
+    icon: FileText,
+    description: '配置输出模板格式',
   },
   {
     id: 'data-source',
     name: '数据源配置',
     icon: Database,
     description: '配置外部数据源连接',
-  },
-  {
-    id: 'template',
-    name: '模板配置',
-    icon: FileText,
-    description: '配置输出模板格式',
   },
 ];
 
