@@ -4,8 +4,8 @@ import { ProcessDomainNode } from '@/components/TreeNode';
 import { NodeEditor } from '@/components/NodeEditor';
 import { JsonPreview } from '@/components/JsonPreview';
 import { ChatInterface } from '@/components/ChatInterface';
-import { ConfigSidebar, CONFIG_ITEMS } from '@/components/ConfigSidebar';
-import { SystemPromptConfig, SystemPromptData, defaultSystemPromptData } from '@/components/SystemPromptConfig';
+import { ConfigSidebar } from '@/components/ConfigSidebar';
+import { TemplateConfig, TemplateConfigData, defaultTemplateConfigData } from '@/components/TemplateConfig';
 import { PlaceholderConfig } from '@/components/PlaceholderConfig';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -210,16 +210,16 @@ const KnowledgeTreeConfigPanel: React.FC = () => {
 const EditorContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'config' | 'chat'>('config');
   const [activeConfigId, setActiveConfigId] = useState('knowledge-tree');
-  const [systemPromptData, setSystemPromptData] = useState<SystemPromptData>(defaultSystemPromptData);
+  const [templateConfigData, setTemplateConfigData] = useState<TemplateConfigData>(defaultTemplateConfigData);
 
   const renderConfigContent = () => {
     switch (activeConfigId) {
       case 'knowledge-tree':
         return <KnowledgeTreeConfigPanel />;
-      case 'system-prompt':
+      case 'template':
         return (
           <div className="flex-1 bg-card">
-            <SystemPromptConfig value={systemPromptData} onChange={setSystemPromptData} />
+            <TemplateConfig value={templateConfigData} onChange={setTemplateConfigData} />
           </div>
         );
       case 'data-source':
@@ -228,14 +228,6 @@ const EditorContent: React.FC = () => {
             configId="data-source"
             title="数据源配置"
             description="配置外部数据源连接，如数据库、API等"
-          />
-        );
-      case 'template':
-        return (
-          <PlaceholderConfig
-            configId="template"
-            title="模板配置"
-            description="配置输出模板格式，用于生成文档"
           />
         );
       default:
