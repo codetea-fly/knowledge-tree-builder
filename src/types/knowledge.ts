@@ -10,7 +10,7 @@ export interface RelatedDomain {
 export interface ProcessDomain {
   name: string;
   type: string;
-  query: string;
+  query: string | false;
   charpter: string;
   related_domains: RelatedDomain[];
 }
