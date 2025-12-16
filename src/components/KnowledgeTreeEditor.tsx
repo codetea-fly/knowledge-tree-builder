@@ -3,6 +3,7 @@ import { TreeProvider, useTree } from '@/context/TreeContext';
 import { ProcessDomainNode } from '@/components/TreeNode';
 import { NodeEditor } from '@/components/NodeEditor';
 import { JsonPreview } from '@/components/JsonPreview';
+import { ChatInterface } from '@/components/ChatInterface';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   FileJson,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -140,61 +142,95 @@ const TreePanel: React.FC = () => {
 };
 
 const EditorContent: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'config' | 'chat'>('config');
   const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
 
   return (
-    <div className="h-screen flex bg-background">
-      {/* Left Panel - Tree */}
-      <div className="w-[420px] border-r border-border bg-card flex flex-col shrink-0">
-        <TreePanel />
+    <div className="h-screen flex flex-col bg-background">
+      {/* Top Navigation - 主模式切换 */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card">
+        <div className="flex items-center gap-2">
+          <TreeDeciduous className="h-5 w-5 text-primary" />
+          <span className="font-semibold text-foreground">知识库配置与AI对话</span>
+        </div>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'config' | 'chat')}>
+          <TabsList>
+            <TabsTrigger value="config" className="gap-2">
+              <Settings className="h-4 w-4" />
+              树配置
+            </TabsTrigger>
+            <TabsTrigger value="chat" className="gap-2">
+              <MessageSquare className="h-4 w-4" />
+              AI 对话
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="w-[140px]" /> {/* Spacer for centering */}
       </div>
 
-      {/* Right Panel - Editor & JSON */}
-      <div
-        className={cn(
-          'flex-1 flex flex-col transition-all duration-300',
-          rightPanelCollapsed && 'w-12'
-        )}
-      >
-        {/* Toggle Button */}
-        <div className="flex items-center gap-2 p-2 border-b border-border bg-card">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
-          >
-            {rightPanelCollapsed ? (
-              <PanelLeft className="h-4 w-4" />
-            ) : (
-              <PanelLeftClose className="h-4 w-4" />
-            )}
-          </Button>
-          {!rightPanelCollapsed && (
-            <span className="text-sm font-medium text-muted-foreground">
-              节点编辑 & JSON 预览
-            </span>
-          )}
-        </div>
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {activeTab === 'config' ? (
+          <>
+            {/* Left Panel - Tree */}
+            <div className="w-[420px] border-r border-border bg-card flex flex-col shrink-0">
+              <TreePanel />
+            </div>
 
-        {!rightPanelCollapsed && (
-          <Tabs defaultValue="editor" className="flex-1 flex flex-col">
-            <TabsList className="w-full justify-start rounded-none border-b border-border bg-card px-4">
-              <TabsTrigger value="editor" className="gap-2">
-                <Settings className="h-4 w-4" />
-                节点编辑
-              </TabsTrigger>
-              <TabsTrigger value="json" className="gap-2">
-                <Code className="h-4 w-4" />
-                JSON 输出
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="editor" className="flex-1 m-0 overflow-auto bg-card">
-              <NodeEditor />
-            </TabsContent>
-            <TabsContent value="json" className="flex-1 m-0 overflow-hidden bg-card">
-              <JsonPreview />
-            </TabsContent>
-          </Tabs>
+            {/* Right Panel - Editor & JSON */}
+            <div
+              className={cn(
+                'flex-1 flex flex-col transition-all duration-300',
+                rightPanelCollapsed && 'w-12'
+              )}
+            >
+              {/* Toggle Button */}
+              <div className="flex items-center gap-2 p-2 border-b border-border bg-card">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+                >
+                  {rightPanelCollapsed ? (
+                    <PanelLeft className="h-4 w-4" />
+                  ) : (
+                    <PanelLeftClose className="h-4 w-4" />
+                  )}
+                </Button>
+                {!rightPanelCollapsed && (
+                  <span className="text-sm font-medium text-muted-foreground">
+                    节点编辑 & JSON 预览
+                  </span>
+                )}
+              </div>
+
+              {!rightPanelCollapsed && (
+                <Tabs defaultValue="editor" className="flex-1 flex flex-col">
+                  <TabsList className="w-full justify-start rounded-none border-b border-border bg-card px-4">
+                    <TabsTrigger value="editor" className="gap-2">
+                      <Settings className="h-4 w-4" />
+                      节点编辑
+                    </TabsTrigger>
+                    <TabsTrigger value="json" className="gap-2">
+                      <Code className="h-4 w-4" />
+                      JSON 输出
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="editor" className="flex-1 m-0 overflow-auto bg-card">
+                    <NodeEditor />
+                  </TabsContent>
+                  <TabsContent value="json" className="flex-1 m-0 overflow-hidden bg-card">
+                    <JsonPreview />
+                  </TabsContent>
+                </Tabs>
+              )}
+            </div>
+          </>
+        ) : (
+          /* Chat Interface */
+          <div className="flex-1">
+            <ChatInterface />
+          </div>
         )}
       </div>
     </div>
