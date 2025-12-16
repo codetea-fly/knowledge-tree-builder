@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { KnowledgeTree, KnowledgeNode, TreeContextType, RelatedDomain } from '@/types/knowledge';
 
 const TreeContext = createContext<TreeContextType | null>(null);
@@ -55,6 +55,25 @@ const updateNestedRelatedDomains = (
     }
     return d;
   });
+};
+
+// 根据路径字符串获取节点引用
+const getNodeByPath = (tree: KnowledgeTree, path: string): KnowledgeNode | null => {
+  // 支持路径示例: "process_domains[0]" 或 "process_domains[0].related_domains[1]"
+  const segments = path.match(/(\w+)(\[\d+\])?/g);
+  if (!segments) return null;
+
+  let current: any = tree;
+  for (const seg of segments) {
+    const match = seg.match(/(\w+)(\[(\d+)\])?/);
+    if (!match) return null;
+    const key = match[1];
+    const index = match[3] !== undefined ? parseInt(match[3], 10) : null;
+    if (!(key in current)) return null;
+    current = index !== null ? current[key][index] : current[key];
+    if (current === undefined) return null;
+  }
+  return current as KnowledgeNode;
 };
 
 export const TreeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -141,6 +160,15 @@ export const TreeProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return prev;
     });
   }, []);
+
+  // 保持 selectedNode 引用与最新 tree 同步
+  useEffect(() => {
+    if (!selectedNode) return;
+    const updatedNode = getNodeByPath(tree, selectedNode.path);
+    if (updatedNode) {
+      setSelectedNode({ node: updatedNode, path: selectedNode.path });
+    }
+  }, [tree, selectedNode]);
 
   return (
     <TreeContext.Provider value={{ 

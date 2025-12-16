@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TreeProvider, useTree } from '@/context/TreeContext';
 import { ProcessDomainNode } from '@/components/TreeNode';
 import { NodeEditor } from '@/components/NodeEditor';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
 import {
   Plus,
   TreeDeciduous,
@@ -22,9 +23,68 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { KnowledgeTree } from '@/types/knowledge';
 
 const TreePanel: React.FC = () => {
   const { tree, setTree } = useTree();
+  const [loadingRemote, setLoadingRemote] = useState(false);
+  const [savingRemote, setSavingRemote] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false);
+
+  const handleFetchRemote = async () => {
+    try {
+      setLoadingRemote(true);
+      const res = await fetch('/knowledge/get');
+      if (!res.ok) {
+        throw new Error(`加载失败: ${res.status} ${res.statusText}`);
+      }
+      const data = await res.json();
+      const remote = Array.isArray(data?.knowledge) ? data.knowledge[0] : data?.knowledge;
+      if (!remote) {
+        throw new Error('返回数据中缺少 knowledge');
+      }
+      setTree(remote as KnowledgeTree);
+      toast.success('已从本地 API 加载配置');
+    } catch (err) {
+      console.error(err);
+      toast.error('加载知识树配置失败');
+    } finally {
+      setLoadingRemote(false);
+    }
+  };
+
+  const handleSaveRemote = async () => {
+    try {
+      setSavingRemote(true);
+      const res = await fetch('/knowledge/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: JSON.stringify(tree) }),
+      });
+      if (!res.ok) {
+        throw new Error(`保存失败: ${res.status} ${res.statusText}`);
+      }
+      const data = await res.json();
+      if (data?.result === 'OK') {
+        toast.success('知识树配置已保存');
+      } else {
+        toast.error('保存失败：返回结果异常');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('保存知识树配置失败');
+    } finally {
+      setSavingRemote(false);
+    }
+  };
+
+  // 初次进入时自动从本地 API 拉取配置
+  useEffect(() => {
+    if (!initialLoaded) {
+      setInitialLoaded(true);
+      handleFetchRemote();
+    }
+  }, [initialLoaded]);
 
   const handleAddProcessDomain = () => {
     setTree((prev) => ({
@@ -72,11 +132,30 @@ const TreePanel: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Root File Info */}
+      {/* Root File Info + actions */}
       <div className="p-4 border-b border-border bg-muted/30">
-        <div className="flex items-center gap-2 mb-3">
-          <FileJson className="h-5 w-5 text-primary" />
-          <span className="font-semibold text-foreground">根配置</span>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <FileJson className="h-5 w-5 text-primary" />
+            <span className="font-semibold text-foreground">根配置</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleFetchRemote}
+              disabled={loadingRemote || savingRemote}
+            >
+              {loadingRemote ? '加载中...' : '从本地 API 加载'}
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveRemote}
+              disabled={loadingRemote || savingRemote}
+            >
+              {savingRemote ? '保存中...' : '保存到本地 API'}
+            </Button>
+          </div>
         </div>
         <div className="space-y-2">
           <div>

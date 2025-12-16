@@ -29,6 +29,7 @@ export const NodeEditor: React.FC = () => {
 
   const { node, path } = selectedNode;
   const isPD = isProcessDomain(node);
+  const queryToggleId = `query-toggle-${path}`;
 
   const updateNodeField = (field: string, value: string | boolean) => {
     const newTree = JSON.parse(JSON.stringify(tree));
@@ -122,9 +123,12 @@ export const NodeEditor: React.FC = () => {
 
       {/* Query */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium">查询条件 (query)</Label>
+        <Label htmlFor={queryToggleId} className="text-sm font-medium">
+          查询条件 (query)
+        </Label>
         <div className="flex items-center gap-3">
           <Switch
+            id={queryToggleId}
             checked={typeof node.query === 'string'}
             onCheckedChange={(checked) => {
               if (checked) {
