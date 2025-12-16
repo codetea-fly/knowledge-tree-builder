@@ -12,35 +12,89 @@ import { cn } from '@/lib/utils';
 // ============================================
 interface ChatRequestParams {
   message: string;
+  chatId: string;
   knowledgeTree: object; // 知识树配置将作为上下文传递
   conversationHistory: Message[];
 }
 
-// 模拟流式响应的函数 - 替换为实际的后端API调用
+// fastgpt 流式接口
 async function* streamChatResponse(params: ChatRequestParams): AsyncGenerator<string> {
-  // TODO: 替换为实际的后端API调用
-  // 示例: 
-  // const response = await fetch('/api/chat', {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify(params),
-  // });
-  // const reader = response.body?.getReader();
-  // ...处理流式响应
+  const response = await fetch('/api/v2/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer fastgpt-griiY9jCGi1QO45y6zX8N0VKibNxFKU9I3AU3t2Fdgb9bbKFeaqqJi872t',
+    },
+    body: JSON.stringify({
+      appId:'69267aea013a61eaaa033518',
+      chatId: params.chatId,
+      stream: true,
+      detail: false,
+      messages: [
+        {
+          role: 'user',
+          content: params.message,
+        },
+      ],
+    }),
+  });
 
-  // 模拟流式响应
-  const mockResponse = `我已收到你的消息："${params.message}"
+  if (!response.ok) {
+    throw new Error(`Chat API failed: ${response.status} ${response.statusText}`);
+  }
 
-基于你配置的知识树，我可以看到：
-- 文件：${(params.knowledgeTree as any).file || '未配置'}
-- 过程域数量：${(params.knowledgeTree as any).process_domains?.length || 0} 个
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('Readable stream is not available on response');
+  }
 
-这是一个模拟的流式响应。请在 ChatInterface.tsx 中的 streamChatResponse 函数里接入实际的后端AI接口。`;
+  const decoder = new TextDecoder();
+  let buffer = '';
 
-  const words = mockResponse.split('');
-  for (const word of words) {
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    yield word;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line === 'data: [DONE]') continue;
+
+      // fastgpt SSE 风格：以 data: 开头，内容可能是 JSON 或纯文本
+      const payload = line.startsWith('data:') ? line.slice(5).trim() : line;
+      if (!payload) continue;
+
+      try {
+        const parsed = JSON.parse(payload);
+        const choice = parsed?.choices?.[0];
+        const textChunk =
+          choice?.delta?.content ??
+          choice?.message?.content ??
+          parsed?.content ??
+          parsed?.text;
+
+        if (typeof textChunk === 'string' && textChunk.length > 0) {
+          yield textChunk;
+          continue;
+        }
+
+        // 如果解析后不是可直接输出的字符串，回退到原始 payload
+        if (typeof parsed === 'string') {
+          yield parsed;
+        }
+      } catch {
+        // 非 JSON 文本直接输出
+        yield payload;
+      }
+    }
+  }
+
+  // 处理残余缓冲
+  if (buffer.trim()) {
+    yield buffer.trim();
   }
 }
 // ============================================
@@ -50,8 +104,65 @@ export const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [chatId, setChatId] = useState<string>(() => {
+    return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const CHAT_STORAGE_KEY = 'knowledge-tree-builder:chat-messages';
+
+  const handleClearHistory = () => {
+    setMessages([]);
+  };
+
+  const handleNewChat = () => {
+    setMessages([]);
+    setChatId(`chat-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+  };
+
+  // 初始化加载本地历史消息
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(CHAT_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Message[];
+        // 简单校验结构
+        if (Array.isArray(parsed)) {
+          setMessages(
+            parsed.map((m) => ({
+              ...m,
+              timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+            }))
+          );
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load chat history from localStorage', e);
+    }
+  }, []);
+
+  // 消息变化时自动保存到本地
+  useEffect(() => {
+    try {
+      if (messages.length === 0) {
+        localStorage.removeItem(CHAT_STORAGE_KEY);
+      } else {
+        localStorage.setItem(
+          CHAT_STORAGE_KEY,
+          JSON.stringify(
+            messages.map((m) => ({
+              ...m,
+              // 确保可序列化
+              timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp,
+            }))
+          )
+        );
+      }
+    } catch (e) {
+      console.error('Failed to save chat history to localStorage', e);
+    }
+  }, [messages]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -88,6 +199,7 @@ export const ChatInterface: React.FC = () => {
       // 调用流式响应
       const stream = streamChatResponse({
         message: userMessage.content,
+        chatId,
         knowledgeTree: tree,
         conversationHistory: messages,
       });
@@ -128,9 +240,29 @@ export const ChatInterface: React.FC = () => {
     <div className="h-full flex flex-col bg-background">
       {/* 知识树配置状态提示 */}
       <div className="px-4 py-3 border-b border-border bg-muted/30">
-        <div className="flex items-center gap-2">
-          <TreeDeciduous className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium text-foreground">当前知识树配置</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <TreeDeciduous className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium text-foreground">当前知识树配置</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearHistory}
+              disabled={messages.length === 0 || isStreaming}
+            >
+              清空对话
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewChat}
+              disabled={isStreaming}
+            >
+              新对话
+            </Button>
+          </div>
         </div>
         <div className="mt-1 text-xs text-muted-foreground">
           {hasTreeConfig ? (
