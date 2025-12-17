@@ -32,7 +32,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       >
         {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
       </div>
-      <div className={cn('flex-1 max-w-[80%] space-y-1', isUser ? 'items-end' : 'items-start')}>
+      <div className={cn('max-w-[70%] space-y-1', isUser ? 'items-end' : 'items-start')}>
         <div className={cn('flex items-center gap-2', isUser ? 'flex-row-reverse' : 'flex-row')}>
           <span className="font-medium text-sm text-foreground">
             {isUser ? '你' : 'AI 助手'}
