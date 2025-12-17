@@ -17,8 +17,13 @@ interface ChatRequestParams {
   conversationHistory: Message[];
 }
 
-// fastgpt 流式接口
-async function* streamChatResponse(params: ChatRequestParams): AsyncGenerator<string> {
+// fastgpt 流式接口 - 返回 { type: 'thinking' | 'content', text: string }
+interface StreamChunk {
+  type: 'thinking' | 'content';
+  text: string;
+}
+
+async function* streamChatResponse(params: ChatRequestParams): AsyncGenerator<StreamChunk> {
   const response = await fetch('/api/v2/chat/completions', {
     method: 'POST',
     headers: {
@@ -70,6 +75,15 @@ async function* streamChatResponse(params: ChatRequestParams): AsyncGenerator<st
       try {
         const parsed = JSON.parse(payload);
         const choice = parsed?.choices?.[0];
+        
+        // 检查是否有 reasoning_content (思考过程)
+        const thinkingChunk = choice?.delta?.reasoning_content;
+        if (typeof thinkingChunk === 'string' && thinkingChunk.length > 0) {
+          yield { type: 'thinking', text: thinkingChunk };
+          continue;
+        }
+
+        // 正常内容
         const textChunk =
           choice?.delta?.content ??
           choice?.message?.content ??
@@ -77,24 +91,24 @@ async function* streamChatResponse(params: ChatRequestParams): AsyncGenerator<st
           parsed?.text;
 
         if (typeof textChunk === 'string' && textChunk.length > 0) {
-          yield textChunk;
+          yield { type: 'content', text: textChunk };
           continue;
         }
 
         // 如果解析后不是可直接输出的字符串，回退到原始 payload
         if (typeof parsed === 'string') {
-          yield parsed;
+          yield { type: 'content', text: parsed };
         }
       } catch {
         // 非 JSON 文本直接输出
-        yield payload;
+        yield { type: 'content', text: payload };
       }
     }
   }
 
   // 处理残余缓冲
   if (buffer.trim()) {
-    yield buffer.trim();
+    yield { type: 'content', text: buffer.trim() };
   }
 }
 // ============================================
@@ -191,6 +205,7 @@ export const ChatInterface: React.FC = () => {
       id: aiMessageId,
       role: 'assistant',
       content: '',
+      thinking: '',
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, aiMessage]);
@@ -208,7 +223,11 @@ export const ChatInterface: React.FC = () => {
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === aiMessageId
-              ? { ...msg, content: msg.content + chunk }
+              ? {
+                  ...msg,
+                  content: chunk.type === 'content' ? msg.content + chunk.text : msg.content,
+                  thinking: chunk.type === 'thinking' ? (msg.thinking || '') + chunk.text : msg.thinking,
+                }
               : msg
           )
         );
