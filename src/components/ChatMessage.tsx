@@ -8,6 +8,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  thinking?: string;
   timestamp: Date;
 }
 
@@ -42,6 +43,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             {message.timestamp.toLocaleTimeString()}
           </span>
         </div>
+        {/* 思考过程 */}
+        {!isUser && message.thinking && (
+          <details className="group">
+            <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 mb-1">
+              <span className="group-open:rotate-90 transition-transform">▶</span>
+              思考过程
+            </summary>
+            <div className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2 mb-2 border border-border/50">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.thinking}</ReactMarkdown>
+            </div>
+          </details>
+        )}
         <div
           className={cn(
             'text-sm leading-relaxed rounded-lg p-3',
