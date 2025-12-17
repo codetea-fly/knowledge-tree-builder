@@ -66,7 +66,22 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           {isUser ? (
             <span className="whitespace-pre-wrap">{message.content}</span>
           ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-pre:my-2 prose-code:bg-background/50 prose-code:px-1 prose-code:rounded prose-table:border-collapse prose-th:border prose-th:border-border prose-th:p-2 prose-th:bg-muted prose-td:border prose-td:border-border prose-td:p-2 prose-img:rounded-md prose-img:max-w-full">
+            <div className="prose prose-sm dark:prose-invert max-w-none 
+              prose-p:my-2 prose-p:leading-relaxed
+              prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5
+              prose-headings:my-3 prose-headings:font-semibold
+              prose-pre:my-3 prose-pre:bg-background/80 prose-pre:border prose-pre:border-border prose-pre:rounded-lg
+              prose-code:bg-background/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-primary prose-code:font-medium prose-code:before:content-none prose-code:after:content-none
+              prose-table:w-full prose-table:border-collapse prose-table:border prose-table:border-border prose-table:rounded-lg prose-table:overflow-hidden prose-table:my-3
+              prose-thead:bg-muted/70
+              prose-th:border prose-th:border-border prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold prose-th:text-foreground
+              prose-td:border prose-td:border-border prose-td:px-3 prose-td:py-2
+              prose-tr:even:bg-muted/30
+              prose-img:rounded-lg prose-img:max-w-full prose-img:my-3 prose-img:shadow-md
+              prose-blockquote:border-l-4 prose-blockquote:border-primary/50 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-muted-foreground
+              prose-hr:border-border prose-hr:my-4
+              prose-a:text-primary prose-a:underline prose-a:underline-offset-2 hover:prose-a:text-primary/80
+            ">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
             </div>
           )}
