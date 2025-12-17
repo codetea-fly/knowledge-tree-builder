@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { useTree } from '@/context/TreeContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,62 @@ import { Folder, Link, FileText } from 'lucide-react';
 
 const isProcessDomain = (node: ProcessDomain | RelatedDomain): node is ProcessDomain => {
   return 'charpter' in node;
+};
+
+// Custom input that handles Chinese IME correctly
+interface CompositionInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+  id?: string;
+}
+
+const CompositionInput: React.FC<CompositionInputProps> = ({
+  value,
+  onChange,
+  placeholder,
+  className,
+  id
+}) => {
+  const [localValue, setLocalValue] = useState(value);
+  const isComposingRef = useRef(false);
+
+  // Sync local value when prop changes externally
+  React.useEffect(() => {
+    if (!isComposingRef.current) {
+      setLocalValue(value);
+    }
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setLocalValue(newValue);
+    if (!isComposingRef.current) {
+      onChange(newValue);
+    }
+  };
+
+  const handleCompositionStart = () => {
+    isComposingRef.current = true;
+  };
+
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
+    isComposingRef.current = false;
+    onChange((e.target as HTMLInputElement).value);
+  };
+
+  return (
+    <Input
+      id={id}
+      value={localValue}
+      onChange={handleChange}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
 };
 
 export const NodeEditor: React.FC = () => {
@@ -82,10 +138,10 @@ export const NodeEditor: React.FC = () => {
         <Label htmlFor="name" className="text-sm font-medium">
           名称 (name)
         </Label>
-        <Input
+        <CompositionInput
           id="name"
           value={node.name}
-          onChange={(e) => updateNodeField('name', e.target.value)}
+          onChange={(value) => updateNodeField('name', value)}
           placeholder="输入名称"
           className="bg-background"
         />
@@ -96,10 +152,10 @@ export const NodeEditor: React.FC = () => {
         <Label htmlFor="type" className="text-sm font-medium">
           类型 (type)
         </Label>
-        <Input
+        <CompositionInput
           id="type"
           value={node.type}
-          onChange={(e) => updateNodeField('type', e.target.value)}
+          onChange={(value) => updateNodeField('type', value)}
           placeholder="如: ISO 9000过程组"
           className="bg-background"
         />
@@ -111,10 +167,10 @@ export const NodeEditor: React.FC = () => {
           <Label htmlFor="charpter" className="text-sm font-medium">
             章节 (charpter)
           </Label>
-          <Input
+          <CompositionInput
             id="charpter"
             value={(node as ProcessDomain).charpter}
-            onChange={(e) => updateNodeField('charpter', e.target.value)}
+            onChange={(value) => updateNodeField('charpter', value)}
             placeholder="如: 8.7"
             className="bg-background"
           />
@@ -143,9 +199,9 @@ export const NodeEditor: React.FC = () => {
           </span>
         </div>
         {typeof node.query === 'string' && (
-          <Input
+          <CompositionInput
             value={node.query}
-            onChange={(e) => updateNodeField('query', e.target.value)}
+            onChange={(value) => updateNodeField('query', value)}
             placeholder="输入查询关键词"
             className="bg-background mt-2"
           />
@@ -159,10 +215,10 @@ export const NodeEditor: React.FC = () => {
             <Label htmlFor="file" className="text-sm font-medium">
               文件名 (file)
             </Label>
-            <Input
+            <CompositionInput
               id="file"
               value={(node as RelatedDomain).file}
-              onChange={(e) => updateNodeField('file', e.target.value)}
+              onChange={(value) => updateNodeField('file', value)}
               placeholder="如: GJB 571A-2024"
               className="bg-background"
             />
@@ -172,10 +228,10 @@ export const NodeEditor: React.FC = () => {
             <Label htmlFor="file_path" className="text-sm font-medium">
               文件路径 (file_path)
             </Label>
-            <Input
+            <CompositionInput
               id="file_path"
               value={(node as RelatedDomain).file_path}
-              onChange={(e) => updateNodeField('file_path', e.target.value)}
+              onChange={(value) => updateNodeField('file_path', value)}
               placeholder="输入完整文件路径"
               className="bg-background"
             />
