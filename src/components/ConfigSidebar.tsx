@@ -8,6 +8,7 @@ import {
   FileText,
   Database,
   Plus,
+  Workflow,
   LucideIcon,
 } from 'lucide-react';
 
@@ -31,6 +32,12 @@ export const CONFIG_ITEMS: ConfigItem[] = [
     name: '模板配置',
     icon: FileText,
     description: '配置输出模板格式',
+  },
+  {
+    id: 'workflow',
+    name: '审查流程配置',
+    icon: Workflow,
+    description: '可视化配置审查流程',
   },
   {
     id: 'data-source',
