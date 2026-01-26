@@ -173,8 +173,35 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     toast.success('画布已清空');
   };
 
+  // 计算阶段背景区域
+  const stageWidth = 100 / WORKFLOW_STAGES.length;
+
   return (
     <div ref={reactFlowWrapper} className="flex-1 h-full relative">
+      {/* 阶段背景层 */}
+      <div className="absolute inset-0 flex pointer-events-none z-0">
+        {WORKFLOW_STAGES.map((stage, index) => (
+          <div
+            key={stage.id}
+            className="h-full flex flex-col border-r border-border/50 last:border-r-0"
+            style={{
+              width: `${stageWidth}%`,
+              backgroundColor: `${stage.color}40`,
+            }}
+          >
+            <div
+              className="px-3 py-2 text-xs font-semibold text-center border-b"
+              style={{
+                backgroundColor: stage.color,
+                color: '#374151',
+              }}
+            >
+              {stage.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
       <ReactFlow
         nodes={nodes as any}
         edges={edges}
@@ -192,6 +219,11 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 }
               } else if (change.type === 'remove') {
                 result = result.filter((n) => n.id !== change.id);
+                // 如果删除的是选中的节点，清空选择
+                const removedNode = nds.find((n) => n.id === change.id);
+                if (removedNode?.selected) {
+                  onNodeSelect(null);
+                }
               } else if (change.type === 'select') {
                 const nodeIndex = result.findIndex((n) => n.id === change.id);
                 if (nodeIndex !== -1) {
@@ -229,9 +261,11 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         nodesDraggable={!previewMode}
         nodesConnectable={!previewMode}
         elementsSelectable={!previewMode}
-        className="bg-background"
+        deleteKeyCode={['Backspace', 'Delete']}
+        className="bg-transparent"
+        style={{ zIndex: 1 }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1} className="!bg-transparent" />
         <Controls showInteractive={false} />
         <MiniMap
           nodeStrokeWidth={3}
@@ -283,21 +317,12 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           </Button>
         </Panel>
 
-        {/* 阶段标签 */}
-        <Panel position="top-left" className="flex gap-2 flex-wrap max-w-[600px]">
-          {WORKFLOW_STAGES.map((stage) => (
-            <div
-              key={stage.id}
-              className="px-3 py-1.5 rounded-full text-xs font-medium border"
-              style={{
-                backgroundColor: stage.color,
-                borderColor: stage.color,
-              }}
-            >
-              {stage.label}
-            </div>
-          ))}
-        </Panel>
+        {/* 删除提示 */}
+        {!previewMode && (
+          <Panel position="bottom-center" className="text-xs text-muted-foreground bg-card/80 px-3 py-1.5 rounded-full border">
+            选中节点后按 Delete 或 Backspace 删除
+          </Panel>
+        )}
       </ReactFlow>
     </div>
   );

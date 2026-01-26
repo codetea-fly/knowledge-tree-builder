@@ -8,16 +8,10 @@ import {
   Search,
   History,
   PenTool,
-  FileSearch,
-  MessageCircle,
-  CheckSquare,
-  GitBranch,
-  Code,
   LucideIcon,
 } from 'lucide-react';
 import {
   CHECK_CATEGORY_NODES,
-  INTERACTION_TYPE_NODES,
   NodeLibraryItem,
 } from '@/types/workflow';
 
@@ -28,11 +22,6 @@ const iconMap: Record<string, LucideIcon> = {
   Search,
   History,
   PenTool,
-  FileSearch,
-  MessageCircle,
-  CheckSquare,
-  GitBranch,
-  Code,
 };
 
 interface DraggableNodeProps {
@@ -108,7 +97,6 @@ export const NodeLibrary: React.FC = () => {
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-6">
           <NodeGroup title="检查项类别" items={CHECK_CATEGORY_NODES} />
-          <NodeGroup title="交互方式" items={INTERACTION_TYPE_NODES} />
         </div>
       </ScrollArea>
     </div>
