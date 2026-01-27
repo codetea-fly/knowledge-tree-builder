@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { FileText, Save, Building2, ListTree, RefreshCw, Loader2 } from 'lucide-react';
+import { FileText, Save, Building2, ListTree, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 export interface TemplateConfigData {
@@ -20,146 +20,8 @@ export const TemplateConfig: React.FC<TemplateConfigProps> = ({
   value,
   onChange,
 }) => {
-  const [loadingRemote, setLoadingRemote] = useState(false);
-  const [savingRemote, setSavingRemote] = useState(false);
-  const [initialLoaded, setInitialLoaded] = useState(false);
-
-  // 本地存储 key
-  const TEMPLATE_STORAGE_KEY = 'knowledge-tree-builder:template-config';
-
-  // 从本地存储加载
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(TEMPLATE_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as TemplateConfigData;
-        if (parsed && typeof parsed === 'object') {
-          onChange(parsed);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load template config from localStorage', e);
-    }
-  }, []);
-
-  // 保存到本地存储
-  useEffect(() => {
-    try {
-      localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(value));
-    } catch (e) {
-      console.error('Failed to save template config to localStorage', e);
-    }
-  }, [value]);
-
-  // 从远程 API 加载
-  const handleFetchRemote = async () => {
-    try {
-      setLoadingRemote(true);
-      const res = await fetch('/template/get');
-      if (!res.ok) {
-        throw new Error(`加载失败: ${res.status} ${res.statusText}`);
-      }
-      const data = await res.json();
-      // 假设返回格式为 { background: string, structure: string, replace: string }
-      const remote = data?.background || data?.structure || data?.replace ? {
-        organizationBackground: data.background || '',
-        documentStructure: data.structure || '',
-        termReplacement: data.replace || '',
-      } : null;
-      
-      if (remote && (remote.organizationBackground || remote.documentStructure || remote.termReplacement)) {
-        onChange(remote);
-        toast.success('已从本地 API 加载模板配置');
-      } else {
-        // 内容为空，使用默认值
-        onChange(defaultTemplateConfigData);
-        toast.warning('远程配置为空，已使用默认配置');
-      }
-    } catch (err) {
-      console.error(err);
-      // 加载失败，使用默认值
-      onChange(defaultTemplateConfigData);
-      toast.warning('加载模板配置失败，已使用默认配置');
-    } finally {
-      setLoadingRemote(false);
-    }
-  };
-
-  // 保存到远程 API
-  const handleSaveRemote = async () => {
-    try {
-      setSavingRemote(true);
-      const res = await fetch('/template/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: "",
-          background: value.organizationBackground,
-          structure: value.documentStructure,
-          replace: value.termReplacement,
-        }),
-      });
-      if (!res.ok) {
-        throw new Error(`保存失败: ${res.status} ${res.statusText}`);
-      }
-      const data = await res.json();
-      if (data?.result === 'OK' || res.ok) {
-        toast.success('模板配置已保存到本地 API');
-      } else {
-        toast.error('保存失败：返回结果异常');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('保存模板配置失败');
-    } finally {
-      setSavingRemote(false);
-    }
-  };
-
-  // 初次进入时自动从本地 API 拉取配置
-  useEffect(() => {
-    if (!initialLoaded) {
-      setInitialLoaded(true);
-      handleFetchRemote();
-    }
-  }, [initialLoaded]);
-
-  const handleSave = async () => {
-    try {
-      setSavingRemote(true);
-      // 先保存到本地存储
-      try {
-        localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(value));
-      } catch (e) {
-        console.error('Failed to save template config to localStorage', e);
-      }
-      
-      // 然后保存到远程 API
-      const res = await fetch('/template/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: "",
-          background: value.organizationBackground,
-          structure: value.documentStructure,
-          replace: value.termReplacement,
-        }),
-      });
-      if (!res.ok) {
-        throw new Error(`保存失败: ${res.status} ${res.statusText}`);
-      }
-      const data = await res.json();
-      if (data?.result === 'OK' || res.ok) {
-        toast.success('模板配置已保存');
-      } else {
-        toast.error('保存失败：返回结果异常');
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error('保存模板配置失败');
-    } finally {
-      setSavingRemote(false);
-    }
+  const handleSave = () => {
+    toast.success('模板配置已保存');
   };
 
   return (
@@ -231,16 +93,8 @@ export const TemplateConfig: React.FC<TemplateConfigProps> = ({
       </div>
 
       <div className="p-4 border-t border-border bg-card">
-        <Button 
-          onClick={handleSave} 
-          disabled={savingRemote}
-          className="w-full gap-2"
-        >
-          {savingRemote ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
+        <Button onClick={handleSave} className="w-full gap-2">
+          <Save className="h-4 w-4" />
           保存配置
         </Button>
       </div>

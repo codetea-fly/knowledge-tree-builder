@@ -7,7 +7,6 @@ import { ChatInterface } from '@/components/ChatInterface';
 import { ConfigSidebar } from '@/components/ConfigSidebar';
 import { TemplateConfig, TemplateConfigData, defaultTemplateConfigData } from '@/components/TemplateConfig';
 import { PlaceholderConfig } from '@/components/PlaceholderConfig';
-import { WorkflowConfigurator } from '@/components/workflow/WorkflowConfigurator';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -300,12 +299,6 @@ const EditorContent: React.FC = () => {
         return (
           <div className="flex-1 bg-card">
             <TemplateConfig value={templateConfigData} onChange={setTemplateConfigData} />
-          </div>
-        );
-      case 'workflow':
-        return (
-          <div className="flex-1 bg-card overflow-hidden">
-            <WorkflowConfigurator />
           </div>
         );
       case 'data-source':

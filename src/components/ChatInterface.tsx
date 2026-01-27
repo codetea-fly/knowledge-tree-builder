@@ -4,7 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatMessage, Message } from '@/components/ChatMessage';
 import { useTree } from '@/context/TreeContext';
-import { Send, Loader2, TreeDeciduous, Info, Variable } from 'lucide-react';
+import { Send, Loader2, TreeDeciduous, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ============================================
@@ -15,11 +15,6 @@ interface ChatRequestParams {
   chatId: string;
   knowledgeTree: object; // 知识树配置将作为上下文传递
   conversationHistory: Message[];
-  templateConfig?: {
-    organizationBackground: string;
-    documentStructure: string;
-    termReplacement: string;
-  };
 }
 
 // fastgpt 流式接口 - 返回 { type: 'thinking' | 'content', text: string }
@@ -46,11 +41,6 @@ async function* streamChatResponse(params: ChatRequestParams): AsyncGenerator<St
           content: params.message,
         },
       ],
-      variables: params.templateConfig ? {
-        background: params.templateConfig.organizationBackground,
-        structure: params.templateConfig.documentStructure,
-        replace: params.templateConfig.termReplacement,
-      } : undefined,
     }),
   });
 
@@ -135,27 +125,6 @@ export const ChatInterface: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const CHAT_STORAGE_KEY = 'knowledge-tree-builder:chat-messages';
-  const TEMPLATE_STORAGE_KEY = 'knowledge-tree-builder:template-config';
-
-  // 从本地存储读取模板配置
-  const getTemplateConfig = () => {
-    try {
-      const stored = localStorage.getItem(TEMPLATE_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && typeof parsed === 'object') {
-          return {
-            organizationBackground: parsed.organizationBackground || '',
-            documentStructure: parsed.documentStructure || '',
-            termReplacement: parsed.termReplacement || '',
-          };
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load template config from localStorage', e);
-    }
-    return undefined;
-  };
 
   const handleClearHistory = () => {
     setMessages([]);
@@ -248,7 +217,6 @@ export const ChatInterface: React.FC = () => {
         chatId,
         knowledgeTree: tree,
         conversationHistory: messages,
-        templateConfig: getTemplateConfig(),
       });
 
       for await (const chunk of stream) {

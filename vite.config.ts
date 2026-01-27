@@ -17,10 +17,6 @@ export default defineConfig(({ mode }) => ({
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
       },
-      "/template": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
-      },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
