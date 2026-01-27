@@ -7,6 +7,8 @@ import { ChatInterface } from '@/components/ChatInterface';
 import { ConfigSidebar } from '@/components/ConfigSidebar';
 import { TemplateConfig, TemplateConfigData, defaultTemplateConfigData } from '@/components/TemplateConfig';
 import { PlaceholderConfig } from '@/components/PlaceholderConfig';
+import { WorkflowConfig } from '@/components/WorkflowConfig';
+import { ReviewWorkflow, defaultWorkflow } from '@/types/workflow';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -290,11 +292,18 @@ const EditorContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'config' | 'chat'>('config');
   const [activeConfigId, setActiveConfigId] = useState('knowledge-tree');
   const [templateConfigData, setTemplateConfigData] = useState<TemplateConfigData>(defaultTemplateConfigData);
+  const [workflowData, setWorkflowData] = useState<ReviewWorkflow>(defaultWorkflow);
 
   const renderConfigContent = () => {
     switch (activeConfigId) {
       case 'knowledge-tree':
         return <KnowledgeTreeConfigPanel />;
+      case 'review-workflow':
+        return (
+          <div className="flex-1 bg-card">
+            <WorkflowConfig value={workflowData} onChange={setWorkflowData} />
+          </div>
+        );
       case 'template':
         return (
           <div className="flex-1 bg-card">

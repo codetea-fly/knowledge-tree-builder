@@ -7,6 +7,7 @@ import {
   Settings,
   FileText,
   Database,
+  GitBranch,
   Plus,
   LucideIcon,
 } from 'lucide-react';
@@ -25,6 +26,12 @@ export const CONFIG_ITEMS: ConfigItem[] = [
     name: '知识树配置',
     icon: TreeDeciduous,
     description: '配置知识库的树状结构',
+  },
+  {
+    id: 'review-workflow',
+    name: '审核流程配置',
+    icon: GitBranch,
+    description: '配置审核流程步骤',
   },
   {
     id: 'template',
