@@ -266,9 +266,9 @@ export const WorkflowStepCard: React.FC<WorkflowStepCardProps> = ({
                 </SelectTrigger>
                 <SelectContent>
                   {availableSubWorkflows.length === 0 ? (
-                    <SelectItem value="" disabled>
+                    <div className="py-2 px-3 text-sm text-muted-foreground">
                       无可用流程（可能存在循环引用）
-                    </SelectItem>
+                    </div>
                   ) : (
                     availableSubWorkflows.map(w => (
                       <SelectItem key={w.id} value={w.id}>
