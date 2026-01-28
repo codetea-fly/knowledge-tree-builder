@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { WorkflowProvider, useWorkflow } from '@/context/WorkflowContext';
 import { WorkflowLibraryPanel } from './workflow/WorkflowLibraryPanel';
 import { WorkflowDetailPanel } from './workflow/WorkflowDetailPanel';
@@ -35,3 +35,5 @@ export const WorkflowConfig: React.FC = () => {
     </WorkflowProvider>
   );
 };
+
+export default WorkflowConfig;
