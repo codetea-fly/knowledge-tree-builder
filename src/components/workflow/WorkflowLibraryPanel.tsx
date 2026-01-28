@@ -9,6 +9,8 @@ import {
   ChevronRight,
   Folder,
   FolderOpen,
+  Download,
+  Upload,
 } from 'lucide-react';
 
 export const WorkflowLibraryPanel: React.FC = () => {
@@ -16,14 +18,16 @@ export const WorkflowLibraryPanel: React.FC = () => {
     library, 
     selectedWorkflowId, 
     selectWorkflow, 
-    addWorkflow 
+    addWorkflow,
+    saveToLocal,
+    loadFromLocal,
   } = useWorkflow();
 
   return (
     <div className="w-[280px] border-r border-border bg-muted/30 flex flex-col shrink-0">
       {/* Header */}
       <div className="p-3 border-b border-border">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <GitBranch className="h-4 w-4 text-primary" />
             <span className="font-medium text-sm text-foreground">审核流程库</span>
@@ -31,6 +35,16 @@ export const WorkflowLibraryPanel: React.FC = () => {
           <Button size="sm" variant="outline" onClick={addWorkflow}>
             <Plus className="h-4 w-4 mr-1" />
             新建
+          </Button>
+        </div>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" className="flex-1 h-7 text-xs" onClick={saveToLocal}>
+            <Download className="h-3 w-3 mr-1" />
+            保存
+          </Button>
+          <Button size="sm" variant="ghost" className="flex-1 h-7 text-xs" onClick={loadFromLocal}>
+            <Upload className="h-3 w-3 mr-1" />
+            加载
           </Button>
         </div>
       </div>

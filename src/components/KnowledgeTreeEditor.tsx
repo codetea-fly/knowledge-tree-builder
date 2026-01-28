@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import {
   Plus,
   TreeDeciduous,
@@ -22,6 +23,7 @@ import {
   PanelLeft,
   FileJson,
   MessageSquare,
+  ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { KnowledgeTree } from '@/types/knowledge';
@@ -329,18 +331,26 @@ const EditorContent: React.FC = () => {
           <TreeDeciduous className="h-5 w-5 text-primary" />
           <span className="font-semibold text-foreground">知识库配置与AI对话</span>
         </div>
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'config' | 'chat')}>
-          <TabsList>
-            <TabsTrigger value="config" className="gap-2">
-              <Settings className="h-4 w-4" />
-              配置中心
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="gap-2">
-              <MessageSquare className="h-4 w-4" />
-              AI 对话
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex items-center gap-4">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'config' | 'chat')}>
+            <TabsList>
+              <TabsTrigger value="config" className="gap-2">
+                <Settings className="h-4 w-4" />
+                配置中心
+              </TabsTrigger>
+              <TabsTrigger value="chat" className="gap-2">
+                <MessageSquare className="h-4 w-4" />
+                AI 对话
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Link to="/review">
+            <Button variant="default" size="sm" className="gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              进入审查
+            </Button>
+          </Link>
+        </div>
         <div className="w-[140px]" /> {/* Spacer for centering */}
       </div>
 

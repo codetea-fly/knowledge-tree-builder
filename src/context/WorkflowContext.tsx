@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { 
   ReviewWorkflow, 
   WorkflowLibrary, 
@@ -8,6 +8,8 @@ import {
   generateId 
 } from '@/types/workflow';
 import { toast } from 'sonner';
+
+const STORAGE_KEY = 'workflow_library';
 
 interface WorkflowContextType {
   library: WorkflowLibrary;
@@ -26,8 +28,10 @@ interface WorkflowContextType {
   updateStep: (workflowId: string, stepId: string, updates: Partial<WorkflowStep>) => void;
   deleteStep: (workflowId: string, stepId: string) => void;
   
-  // 导出
+  // 导出与保存
   exportWorkflow: (id: string) => void;
+  saveToLocal: () => void;
+  loadFromLocal: () => void;
   
   // 检查循环引用
   checkCircularReference: (workflowId: string, targetWorkflowId: string) => boolean;
@@ -47,10 +51,55 @@ export const useWorkflow = () => {
 };
 
 export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [library, setLibrary] = useState<WorkflowLibrary>(defaultWorkflowLibrary);
+  const [library, setLibrary] = useState<WorkflowLibrary>(() => {
+    // 初次加载时尝试从 localStorage 读取
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed.workflows)) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load workflow library from localStorage:', e);
+    }
+    return defaultWorkflowLibrary;
+  });
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
 
   const selectedWorkflow = library.workflows.find(w => w.id === selectedWorkflowId) || null;
+
+  // 保存到本地
+  const saveToLocal = useCallback(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
+      toast.success('流程库已保存到本地');
+    } catch (e) {
+      console.error('Failed to save workflow library:', e);
+      toast.error('保存失败');
+    }
+  }, [library]);
+
+  // 从本地加载
+  const loadFromLocal = useCallback(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed.workflows)) {
+          setLibrary(parsed);
+          setSelectedWorkflowId(null);
+          toast.success('已从本地加载流程库');
+          return;
+        }
+      }
+      toast.info('未找到本地保存的流程库');
+    } catch (e) {
+      console.error('Failed to load workflow library:', e);
+      toast.error('加载失败');
+    }
+  }, []);
 
   const selectWorkflow = useCallback((id: string | null) => {
     setSelectedWorkflowId(id);
@@ -305,6 +354,8 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       updateStep,
       deleteStep,
       exportWorkflow,
+      saveToLocal,
+      loadFromLocal,
       checkCircularReference,
       getAvailableSubWorkflows,
     }}>

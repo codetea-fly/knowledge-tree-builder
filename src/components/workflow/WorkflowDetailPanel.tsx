@@ -38,6 +38,7 @@ export const WorkflowDetailPanel: React.FC = () => {
     duplicateWorkflow,
     exportWorkflow,
     addStep,
+    saveToLocal,
   } = useWorkflow();
   
   const [showAddStepDialog, setShowAddStepDialog] = useState(false);
@@ -65,6 +66,10 @@ export const WorkflowDetailPanel: React.FC = () => {
             <span className="font-semibold text-foreground">流程配置</span>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={saveToLocal}>
+              <Save className="h-4 w-4 mr-1" />
+              保存到本地
+            </Button>
             <Button variant="outline" size="sm" onClick={() => duplicateWorkflow(selectedWorkflow.id)}>
               <Copy className="h-4 w-4 mr-1" />
               复制
