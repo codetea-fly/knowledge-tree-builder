@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
 import {
   TreeDeciduous,
   Settings,
@@ -10,6 +11,7 @@ import {
   GitBranch,
   Plus,
   LucideIcon,
+  ClipboardCheck,
 } from 'lucide-react';
 
 export interface ConfigItem {
@@ -88,7 +90,13 @@ export const ConfigSidebar: React.FC<ConfigSidebarProps> = ({
           })}
         </div>
       </ScrollArea>
-      <div className="p-2 border-t border-border">
+      <div className="p-2 border-t border-border space-y-2">
+        <Link to="/review">
+          <Button variant="default" size="sm" className="w-full gap-2">
+            <ClipboardCheck className="h-4 w-4" />
+            进入审查页面
+          </Button>
+        </Link>
         <Button variant="outline" size="sm" className="w-full gap-2" disabled>
           <Plus className="h-4 w-4" />
           添加配置项

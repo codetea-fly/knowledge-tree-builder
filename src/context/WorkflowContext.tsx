@@ -1,0 +1,314 @@
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { 
+  ReviewWorkflow, 
+  WorkflowLibrary, 
+  WorkflowStep,
+  defaultWorkflowLibrary, 
+  createDefaultWorkflow,
+  generateId 
+} from '@/types/workflow';
+import { toast } from 'sonner';
+
+interface WorkflowContextType {
+  library: WorkflowLibrary;
+  selectedWorkflowId: string | null;
+  selectedWorkflow: ReviewWorkflow | null;
+  
+  // 流程操作
+  selectWorkflow: (id: string | null) => void;
+  addWorkflow: () => ReviewWorkflow;
+  updateWorkflow: (workflow: ReviewWorkflow) => void;
+  deleteWorkflow: (id: string) => void;
+  duplicateWorkflow: (id: string) => ReviewWorkflow;
+  
+  // 步骤操作
+  addStep: (workflowId: string, step: WorkflowStep, parentStepId?: string) => void;
+  updateStep: (workflowId: string, stepId: string, updates: Partial<WorkflowStep>) => void;
+  deleteStep: (workflowId: string, stepId: string) => void;
+  
+  // 导出
+  exportWorkflow: (id: string) => void;
+  
+  // 检查循环引用
+  checkCircularReference: (workflowId: string, targetWorkflowId: string) => boolean;
+  
+  // 获取可用的子流程列表（排除会造成循环引用的流程）
+  getAvailableSubWorkflows: (currentWorkflowId: string) => ReviewWorkflow[];
+}
+
+const WorkflowContext = createContext<WorkflowContextType | null>(null);
+
+export const useWorkflow = () => {
+  const context = useContext(WorkflowContext);
+  if (!context) {
+    throw new Error('useWorkflow must be used within a WorkflowProvider');
+  }
+  return context;
+};
+
+export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [library, setLibrary] = useState<WorkflowLibrary>(defaultWorkflowLibrary);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+
+  const selectedWorkflow = library.workflows.find(w => w.id === selectedWorkflowId) || null;
+
+  const selectWorkflow = useCallback((id: string | null) => {
+    setSelectedWorkflowId(id);
+  }, []);
+
+  const addWorkflow = useCallback(() => {
+    const newWorkflow = createDefaultWorkflow();
+    // 确保名称唯一
+    const existingNames = library.workflows.map(w => w.name);
+    let name = newWorkflow.name;
+    let counter = 1;
+    while (existingNames.includes(name)) {
+      name = `${newWorkflow.name} (${counter})`;
+      counter++;
+    }
+    newWorkflow.name = name;
+    
+    setLibrary(prev => ({
+      ...prev,
+      workflows: [...prev.workflows, newWorkflow],
+    }));
+    setSelectedWorkflowId(newWorkflow.id);
+    toast.success('已创建新流程');
+    return newWorkflow;
+  }, [library.workflows]);
+
+  const updateWorkflow = useCallback((workflow: ReviewWorkflow) => {
+    // 检查名称唯一性
+    const existingWorkflow = library.workflows.find(
+      w => w.name === workflow.name && w.id !== workflow.id
+    );
+    if (existingWorkflow) {
+      toast.error('流程名称已存在，请使用其他名称');
+      return;
+    }
+    
+    setLibrary(prev => ({
+      ...prev,
+      workflows: prev.workflows.map(w => 
+        w.id === workflow.id 
+          ? { ...workflow, updatedAt: new Date().toISOString() } 
+          : w
+      ),
+    }));
+  }, [library.workflows]);
+
+  const deleteWorkflow = useCallback((id: string) => {
+    // 检查是否被其他流程引用
+    const referencingWorkflows = library.workflows.filter(w => 
+      w.id !== id && 
+      w.steps.some(s => s.stepType === 'sub_workflow' && s.subWorkflowConfig?.workflowId === id)
+    );
+    
+    if (referencingWorkflows.length > 0) {
+      toast.error(`此流程被以下流程引用，无法删除：${referencingWorkflows.map(w => w.name).join(', ')}`);
+      return;
+    }
+    
+    setLibrary(prev => ({
+      ...prev,
+      workflows: prev.workflows.filter(w => w.id !== id),
+    }));
+    
+    if (selectedWorkflowId === id) {
+      setSelectedWorkflowId(null);
+    }
+    toast.success('流程已删除');
+  }, [library.workflows, selectedWorkflowId]);
+
+  const duplicateWorkflow = useCallback((id: string) => {
+    const workflow = library.workflows.find(w => w.id === id);
+    if (!workflow) return workflow!;
+    
+    const newWorkflow: ReviewWorkflow = {
+      ...JSON.parse(JSON.stringify(workflow)),
+      id: generateId(),
+      name: `${workflow.name} (副本)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    
+    // 重新生成所有步骤ID
+    const regenerateStepIds = (steps: WorkflowStep[]): WorkflowStep[] => {
+      return steps.map(step => ({
+        ...step,
+        id: generateId(),
+        children: step.children ? regenerateStepIds(step.children) : undefined,
+      }));
+    };
+    newWorkflow.steps = regenerateStepIds(newWorkflow.steps);
+    
+    setLibrary(prev => ({
+      ...prev,
+      workflows: [...prev.workflows, newWorkflow],
+    }));
+    setSelectedWorkflowId(newWorkflow.id);
+    toast.success('流程已复制');
+    return newWorkflow;
+  }, [library.workflows]);
+
+  const addStep = useCallback((workflowId: string, step: WorkflowStep, parentStepId?: string) => {
+    setLibrary(prev => ({
+      ...prev,
+      workflows: prev.workflows.map(w => {
+        if (w.id !== workflowId) return w;
+        
+        if (!parentStepId) {
+          return {
+            ...w,
+            steps: [...w.steps, step],
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        
+        // 添加到父步骤的children中
+        const addToParent = (steps: WorkflowStep[]): WorkflowStep[] => {
+          return steps.map(s => {
+            if (s.id === parentStepId) {
+              return {
+                ...s,
+                children: [...(s.children || []), step],
+              };
+            }
+            if (s.children) {
+              return { ...s, children: addToParent(s.children) };
+            }
+            return s;
+          });
+        };
+        
+        return {
+          ...w,
+          steps: addToParent(w.steps),
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    }));
+  }, []);
+
+  const updateStep = useCallback((workflowId: string, stepId: string, updates: Partial<WorkflowStep>) => {
+    setLibrary(prev => ({
+      ...prev,
+      workflows: prev.workflows.map(w => {
+        if (w.id !== workflowId) return w;
+        
+        const updateInSteps = (steps: WorkflowStep[]): WorkflowStep[] => {
+          return steps.map(s => {
+            if (s.id === stepId) {
+              return { ...s, ...updates };
+            }
+            if (s.children) {
+              return { ...s, children: updateInSteps(s.children) };
+            }
+            return s;
+          });
+        };
+        
+        return {
+          ...w,
+          steps: updateInSteps(w.steps),
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    }));
+  }, []);
+
+  const deleteStep = useCallback((workflowId: string, stepId: string) => {
+    setLibrary(prev => ({
+      ...prev,
+      workflows: prev.workflows.map(w => {
+        if (w.id !== workflowId) return w;
+        
+        const deleteFromSteps = (steps: WorkflowStep[]): WorkflowStep[] => {
+          return steps
+            .filter(s => s.id !== stepId)
+            .map(s => ({
+              ...s,
+              children: s.children ? deleteFromSteps(s.children) : undefined,
+            }));
+        };
+        
+        return {
+          ...w,
+          steps: deleteFromSteps(w.steps),
+          updatedAt: new Date().toISOString(),
+        };
+      }),
+    }));
+    toast.success('步骤已删除');
+  }, []);
+
+  const exportWorkflow = useCallback((id: string) => {
+    const workflow = library.workflows.find(w => w.id === id);
+    if (!workflow) return;
+    
+    const json = JSON.stringify(workflow, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${workflow.name}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('流程已导出');
+  }, [library.workflows]);
+
+  // 检查循环引用
+  const checkCircularReference = useCallback((workflowId: string, targetWorkflowId: string): boolean => {
+    if (workflowId === targetWorkflowId) return true;
+    
+    const targetWorkflow = library.workflows.find(w => w.id === targetWorkflowId);
+    if (!targetWorkflow) return false;
+    
+    const checkSteps = (steps: WorkflowStep[]): boolean => {
+      for (const step of steps) {
+        if (step.stepType === 'sub_workflow' && step.subWorkflowConfig?.workflowId) {
+          if (step.subWorkflowConfig.workflowId === workflowId) {
+            return true;
+          }
+          if (checkCircularReference(workflowId, step.subWorkflowConfig.workflowId)) {
+            return true;
+          }
+        }
+        if (step.children && checkSteps(step.children)) {
+          return true;
+        }
+      }
+      return false;
+    };
+    
+    return checkSteps(targetWorkflow.steps);
+  }, [library.workflows]);
+
+  const getAvailableSubWorkflows = useCallback((currentWorkflowId: string): ReviewWorkflow[] => {
+    return library.workflows.filter(w => {
+      if (w.id === currentWorkflowId) return false;
+      return !checkCircularReference(currentWorkflowId, w.id);
+    });
+  }, [library.workflows, checkCircularReference]);
+
+  return (
+    <WorkflowContext.Provider value={{
+      library,
+      selectedWorkflowId,
+      selectedWorkflow,
+      selectWorkflow,
+      addWorkflow,
+      updateWorkflow,
+      deleteWorkflow,
+      duplicateWorkflow,
+      addStep,
+      updateStep,
+      deleteStep,
+      exportWorkflow,
+      checkCircularReference,
+      getAvailableSubWorkflows,
+    }}>
+      {children}
+    </WorkflowContext.Provider>
+  );
+};
