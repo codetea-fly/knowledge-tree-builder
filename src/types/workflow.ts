@@ -23,6 +23,16 @@ export const STEP_TYPES: StepTypeInfo[] = [
   { type: 'sub_workflow', label: '子流程', description: '引用其他审核流程', icon: 'GitBranch' },
 ];
 
+// 步骤类型标签映射
+export const stepTypeLabels: Record<StepType, string> = {
+  file_parse: '文件解析',
+  qa_interaction: '问答交互',
+  single_select: '单选',
+  multi_select: '多选',
+  script_check: '脚本',
+  sub_workflow: '子流程',
+};
+
 // 检查项配置
 export interface CheckItemConfig {
   // 文件解析配置
