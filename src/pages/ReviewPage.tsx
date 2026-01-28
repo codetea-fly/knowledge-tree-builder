@@ -2,7 +2,6 @@ import React, { useState, useCallback } from 'react';
 import { WorkflowProvider, useWorkflow } from '@/context/WorkflowContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import {
   Select,
@@ -16,16 +15,8 @@ import {
   Play,
   CheckCircle2,
   XCircle,
-  Clock,
   Loader2,
   ArrowLeft,
-  FileText,
-  MessageSquare,
-  CircleDot,
-  CheckSquare,
-  Code,
-  GitBranch,
-  ChevronRight,
   RotateCcw,
 } from 'lucide-react';
 import { 
@@ -33,81 +24,9 @@ import {
   WorkflowStep, 
   StepExecutionResult, 
   ReviewExecutionResult,
-  StepType,
-  StepStatus,
 } from '@/types/workflow';
 import { Link } from 'react-router-dom';
-
-const stepTypeIcons: Record<StepType, React.ElementType> = {
-  file_parse: FileText,
-  qa_interaction: MessageSquare,
-  single_select: CircleDot,
-  multi_select: CheckSquare,
-  script_check: Code,
-  sub_workflow: GitBranch,
-};
-
-interface StepResultCardProps {
-  result: StepExecutionResult;
-  depth?: number;
-}
-
-const StepResultCard: React.FC<StepResultCardProps> = ({ result, depth = 0 }) => {
-  const Icon = stepTypeIcons[result.stepType] || FileText;
-  
-  const statusConfig: Record<StepStatus, { icon: React.ElementType; color: string; label: string }> = {
-    pending: { icon: Clock, color: 'text-muted-foreground', label: '等待中' },
-    running: { icon: Loader2, color: 'text-blue-500', label: '执行中' },
-    success: { icon: CheckCircle2, color: 'text-green-500', label: '通过' },
-    failed: { icon: XCircle, color: 'text-red-500', label: '失败' },
-    skipped: { icon: ChevronRight, color: 'text-muted-foreground', label: '跳过' },
-  };
-  
-  const config = statusConfig[result.status];
-  const StatusIcon = config.icon;
-
-  return (
-    <div className={cn('space-y-2', depth > 0 && 'ml-6 border-l-2 border-muted pl-4')}>
-      <div className={cn(
-        'flex items-center gap-3 p-3 rounded-md border',
-        result.status === 'running' && 'border-blue-200 bg-blue-50',
-        result.status === 'success' && 'border-green-200 bg-green-50',
-        result.status === 'failed' && 'border-red-200 bg-red-50',
-        result.status === 'pending' && 'border-muted bg-muted/30',
-      )}>
-        <div className="w-8 h-8 rounded-md bg-background border flex items-center justify-center">
-          <Icon className="h-4 w-4 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">{result.stepName}</span>
-            {result.stepType === 'sub_workflow' && (
-              <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                子流程
-              </span>
-            )}
-          </div>
-          {result.message && (
-            <p className="text-xs text-muted-foreground mt-0.5">{result.message}</p>
-          )}
-        </div>
-        <div className={cn('flex items-center gap-1', config.color)}>
-          <StatusIcon className={cn('h-4 w-4', result.status === 'running' && 'animate-spin')} />
-          <span className="text-xs font-medium">{config.label}</span>
-        </div>
-      </div>
-      
-      {/* Sub-workflow results */}
-      {result.subWorkflowResults && result.subWorkflowResults.length > 0 && (
-        <div className="space-y-2">
-          {result.subWorkflowResults.map((subResult) => (
-            <StepResultCard key={subResult.stepId} result={subResult} depth={depth + 1} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
+import { WorkflowCanvas } from '@/components/workflow/WorkflowCanvas';
 
 const ReviewPageContent: React.FC = () => {
   const { library } = useWorkflow();
@@ -117,31 +36,7 @@ const ReviewPageContent: React.FC = () => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
   const selectedWorkflow = library.workflows.find(w => w.id === selectedWorkflowId);
-
-  // 递归获取所有步骤（包括子流程）
-  const flattenSteps = useCallback((
-    steps: WorkflowStep[],
-    getWorkflow: (id: string) => ReviewWorkflow | undefined
-  ): { step: WorkflowStep; isSubWorkflow: boolean; parentWorkflowName?: string }[] => {
-    const result: { step: WorkflowStep; isSubWorkflow: boolean; parentWorkflowName?: string }[] = [];
-    
-    for (const step of steps) {
-      if (step.stepType === 'sub_workflow' && step.subWorkflowConfig?.workflowId) {
-        const subWorkflow = getWorkflow(step.subWorkflowConfig.workflowId);
-        if (subWorkflow) {
-          result.push({ step, isSubWorkflow: true });
-          const subSteps = flattenSteps(subWorkflow.steps, getWorkflow);
-          subSteps.forEach(s => {
-            result.push({ ...s, parentWorkflowName: subWorkflow.name });
-          });
-        }
-      } else {
-        result.push({ step, isSubWorkflow: false });
-      }
-    }
-    
-    return result;
-  }, []);
+  const getWorkflow = useCallback((id: string) => library.workflows.find(w => w.id === id), [library.workflows]);
 
   // 执行审核
   const runReview = useCallback(async () => {
@@ -150,8 +45,6 @@ const ReviewPageContent: React.FC = () => {
     setIsRunning(true);
     setCurrentStepIndex(0);
 
-    const getWorkflow = (id: string) => library.workflows.find(w => w.id === id);
-    
     // 初始化执行结果
     const initStepResults = (steps: WorkflowStep[]): StepExecutionResult[] => {
       return steps.map(step => {
@@ -244,7 +137,7 @@ const ReviewPageContent: React.FC = () => {
     
     setExecutionResult({ ...result });
     setIsRunning(false);
-  }, [selectedWorkflow, library.workflows]);
+  }, [selectedWorkflow, getWorkflow]);
 
   const resetReview = () => {
     setExecutionResult(null);
@@ -286,14 +179,41 @@ const ReviewPageContent: React.FC = () => {
             <span className="font-semibold text-foreground">质量管理体系合规性审核</span>
           </div>
         </div>
+
+        {/* Execution status in header */}
+        {executionResult && (
+          <div className={cn(
+            'flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium',
+            executionResult.status === 'running' && 'bg-blue-100 text-blue-700',
+            executionResult.status === 'completed' && executionResult.overallSuccess && 'bg-green-100 text-green-700',
+            executionResult.status === 'completed' && !executionResult.overallSuccess && 'bg-red-100 text-red-700',
+          )}>
+            {executionResult.status === 'running' ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                执行中 ({currentStepIndex}/{totalSteps})
+              </>
+            ) : executionResult.overallSuccess ? (
+              <>
+                <CheckCircle2 className="h-4 w-4" />
+                审核通过
+              </>
+            ) : (
+              <>
+                <XCircle className="h-4 w-4" />
+                {executionResult.failedSteps.length} 项未通过
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - Workflow Selection */}
-        <div className="w-[350px] border-r border-border bg-muted/30 p-4 flex flex-col">
+        <div className="w-[320px] border-r border-border bg-muted/30 p-4 flex flex-col gap-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-base">选择审核流程</CardTitle>
               <CardDescription>从流程库中选择要执行的审核流程</CardDescription>
             </CardHeader>
@@ -352,9 +272,9 @@ const ReviewPageContent: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Progress */}
+          {/* Progress Card */}
           {(isRunning || executionResult) && (
-            <Card className="mt-4">
+            <Card>
               <CardHeader className="py-3">
                 <CardTitle className="text-sm">执行进度</CardTitle>
               </CardHeader>
@@ -367,70 +287,63 @@ const ReviewPageContent: React.FC = () => {
               </CardContent>
             </Card>
           )}
+
+          {/* Result Summary */}
+          {executionResult && executionResult.status === 'completed' && (
+            <Card className={cn(
+              'border-2',
+              executionResult.overallSuccess ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'
+            )}>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3 mb-3">
+                  {executionResult.overallSuccess ? (
+                    <CheckCircle2 className="h-8 w-8 text-green-500" />
+                  ) : (
+                    <XCircle className="h-8 w-8 text-red-500" />
+                  )}
+                  <div>
+                    <p className="font-semibold">
+                      {executionResult.overallSuccess ? '审核通过' : '审核未通过'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {executionResult.overallSuccess 
+                        ? '所有检查项均已通过' 
+                        : `${executionResult.failedSteps.length} 个步骤未通过`}
+                    </p>
+                  </div>
+                </div>
+                {!executionResult.overallSuccess && (
+                  <div className="text-xs space-y-1">
+                    <p className="font-medium text-red-700">未通过项目：</p>
+                    <ul className="list-disc list-inside text-red-600">
+                      {executionResult.failedSteps.slice(0, 5).map((name, idx) => (
+                        <li key={idx} className="truncate">{name}</li>
+                      ))}
+                      {executionResult.failedSteps.length > 5 && (
+                        <li>...还有 {executionResult.failedSteps.length - 5} 项</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
 
-        {/* Right Panel - Execution Results */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {executionResult ? (
-            <>
-              {/* Result Header */}
-              <div className={cn(
-                'p-4 border-b',
-                executionResult.status === 'completed' && executionResult.overallSuccess && 'bg-green-50 border-green-200',
-                executionResult.status === 'completed' && !executionResult.overallSuccess && 'bg-red-50 border-red-200',
-                executionResult.status === 'running' && 'bg-blue-50 border-blue-200',
-              )}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {executionResult.status === 'running' ? (
-                      <Loader2 className="h-6 w-6 text-blue-500 animate-spin" />
-                    ) : executionResult.overallSuccess ? (
-                      <CheckCircle2 className="h-6 w-6 text-green-500" />
-                    ) : (
-                      <XCircle className="h-6 w-6 text-red-500" />
-                    )}
-                    <div>
-                      <h3 className="font-semibold">
-                        {executionResult.status === 'running' 
-                          ? '正在执行审核...' 
-                          : executionResult.overallSuccess 
-                            ? '审核通过' 
-                            : '审核未通过'}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {executionResult.workflowName}
-                      </p>
-                    </div>
-                  </div>
-                  {executionResult.status === 'completed' && !executionResult.overallSuccess && (
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-red-600">
-                        {executionResult.failedSteps.length} 个步骤未通过
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {executionResult.failedSteps.slice(0, 3).join('、')}
-                        {executionResult.failedSteps.length > 3 && ' 等'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Results List */}
-              <ScrollArea className="flex-1">
-                <div className="p-4 space-y-3">
-                  {executionResult.stepResults.map((result) => (
-                    <StepResultCard key={result.stepId} result={result} />
-                  ))}
-                </div>
-              </ScrollArea>
-            </>
+        {/* Right Panel - Canvas Preview */}
+        <div className="flex-1 overflow-hidden">
+          {selectedWorkflow ? (
+            <WorkflowCanvas
+              workflow={selectedWorkflow}
+              executionResult={executionResult?.stepResults}
+              getWorkflow={getWorkflow}
+            />
           ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <div className="h-full flex items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <CheckCircle2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg mb-2">选择流程并开始审核</p>
-                <p className="text-sm">审核结果将在此处显示</p>
+                <p className="text-lg mb-2">选择审核流程</p>
+                <p className="text-sm">在左侧选择一个流程以预览其结构</p>
               </div>
             </div>
           )}
