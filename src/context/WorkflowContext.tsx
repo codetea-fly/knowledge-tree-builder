@@ -306,36 +306,49 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     toast.success('流程已导出');
   }, [library.workflows]);
 
-  // 检查循环引用
-  const checkCircularReference = useCallback((workflowId: string, targetWorkflowId: string): boolean => {
-    if (workflowId === targetWorkflowId) return true;
+  // 获取流程引用的所有子流程ID（递归）
+  const getReferencedWorkflowIds = useCallback((workflowId: string, visited: Set<string> = new Set()): Set<string> => {
+    if (visited.has(workflowId)) return visited;
+    visited.add(workflowId);
     
-    const targetWorkflow = library.workflows.find(w => w.id === targetWorkflowId);
-    if (!targetWorkflow) return false;
+    const workflow = library.workflows.find(w => w.id === workflowId);
+    if (!workflow) return visited;
     
-    const checkSteps = (steps: WorkflowStep[]): boolean => {
+    const collectFromSteps = (steps: WorkflowStep[]) => {
       for (const step of steps) {
         if (step.stepType === 'sub_workflow' && step.subWorkflowConfig?.workflowId) {
-          if (step.subWorkflowConfig.workflowId === workflowId) {
-            return true;
-          }
-          if (checkCircularReference(workflowId, step.subWorkflowConfig.workflowId)) {
-            return true;
+          const subId = step.subWorkflowConfig.workflowId;
+          if (!visited.has(subId)) {
+            getReferencedWorkflowIds(subId, visited);
           }
         }
-        if (step.children && checkSteps(step.children)) {
-          return true;
+        if (step.children) {
+          collectFromSteps(step.children);
         }
       }
-      return false;
     };
     
-    return checkSteps(targetWorkflow.steps);
+    collectFromSteps(workflow.steps);
+    return visited;
   }, [library.workflows]);
+
+  // 检查循环引用：如果 targetWorkflowId 直接或间接引用了 currentWorkflowId，则会形成循环
+  const checkCircularReference = useCallback((currentWorkflowId: string, targetWorkflowId: string): boolean => {
+    if (currentWorkflowId === targetWorkflowId) return true;
+    
+    // 检查 target 是否引用了 current（直接或间接）
+    const targetRefs = getReferencedWorkflowIds(targetWorkflowId, new Set());
+    if (targetRefs.has(currentWorkflowId)) {
+      return true;
+    }
+    
+    return false;
+  }, [getReferencedWorkflowIds]);
 
   const getAvailableSubWorkflows = useCallback((currentWorkflowId: string): ReviewWorkflow[] => {
     return library.workflows.filter(w => {
       if (w.id === currentWorkflowId) return false;
+      // 检查选择 w 作为子流程是否会造成循环
       return !checkCircularReference(currentWorkflowId, w.id);
     });
   }, [library.workflows, checkCircularReference]);
