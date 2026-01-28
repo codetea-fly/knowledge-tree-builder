@@ -332,7 +332,13 @@ const EditorContent: React.FC = () => {
           <span className="font-semibold text-foreground">知识库配置与AI对话</span>
         </div>
         <div className="flex items-center gap-4">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'config' | 'chat')}>
+          <Tabs value={activeTab} onValueChange={(v) => {
+            if (v === 'review') {
+              // 不更新 activeTab，让 Link 导航处理
+            } else {
+              setActiveTab(v as 'config' | 'chat');
+            }
+          }}>
             <TabsList>
               <TabsTrigger value="config" className="gap-2">
                 <Settings className="h-4 w-4" />
@@ -342,14 +348,14 @@ const EditorContent: React.FC = () => {
                 <MessageSquare className="h-4 w-4" />
                 AI 对话
               </TabsTrigger>
+              <TabsTrigger value="review" asChild>
+                <Link to="/review" className="gap-2">
+                  <ClipboardCheck className="h-4 w-4" />
+                  进入审查
+                </Link>
+              </TabsTrigger>
             </TabsList>
           </Tabs>
-          <Link to="/review">
-            <Button variant="default" size="sm" className="gap-2">
-              <ClipboardCheck className="h-4 w-4" />
-              进入审查
-            </Button>
-          </Link>
         </div>
         <div className="w-[140px]" /> {/* Spacer for centering */}
       </div>
