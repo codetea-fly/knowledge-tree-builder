@@ -42,13 +42,20 @@ export interface CheckItemConfig {
   // 问答交互配置
   question?: string;
   expectedAnswer?: string;
+  useAiValidation?: boolean;
+  aiValidationPrompt?: string;
   
   // 单选/多选配置
   options?: { label: string; value: string; isCorrect?: boolean }[];
+  shuffleOptions?: boolean;
+  minSelect?: number;
+  maxSelect?: number;
   
   // 脚本检查配置
   scriptContent?: string;
-  scriptLanguage?: 'javascript' | 'python';
+  scriptLanguage?: 'javascript' | 'python' | 'sql';
+  scriptTimeout?: number;
+  memoryLimit?: number;
 }
 
 // 子流程配置

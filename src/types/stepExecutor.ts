@@ -28,14 +28,22 @@ export interface StepExecutionCallbacks {
   onLog?: (level: 'info' | 'warn' | 'error', message: string) => void;
 }
 
+// 验证规则（与stepApi.ts保持一致）
+export interface ValidationRule {
+  type: 'required' | 'minLength' | 'maxLength' | 'pattern' | 'custom';
+  value?: string | number;
+  message: string;
+}
+
 // 输入请求配置
 export interface InputRequestConfig {
-  type: 'file' | 'text' | 'select' | 'multiselect';
+  type: 'file' | 'text' | 'select' | 'multiselect' | 'confirm' | 'custom';
   title: string;
   description?: string;
   options?: { label: string; value: string }[];
   required?: boolean;
-  validation?: (value: unknown) => string | null;
+  validation?: ValidationRule[] | ((value: unknown) => string | null);
+  customComponent?: string;
 }
 
 // 步骤执行输出
