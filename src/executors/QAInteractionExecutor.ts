@@ -1,5 +1,7 @@
 import { BaseStepExecutor, StepExecutionContext, StepExecutionOutput } from '@/types/stepExecutor';
 import { CheckItemConfig, StepType } from '@/types/workflow';
+import { stepApiClient } from '@/services/stepApiClient';
+import { QAInteractionRequest } from '@/types/stepApi';
 
 export class QAInteractionExecutor extends BaseStepExecutor<CheckItemConfig> {
   readonly stepType: StepType = 'qa_interaction';
@@ -13,6 +15,20 @@ export class QAInteractionExecutor extends BaseStepExecutor<CheckItemConfig> {
     // 获取问题配置
     const question = config?.question || '请回答以下问题';
     
+    // 构建API请求
+    const apiRequest: Omit<QAInteractionRequest, 'stepType'> = {
+      stepId: context.step.id,
+      workflowId: context.workflowId,
+      sessionId: context.sharedData.sessionId as string || crypto.randomUUID(),
+      context: context.sharedData,
+      questionConfig: {
+        question,
+        expectedAnswer: config?.expectedAnswer,
+        useAiValidation: config?.useAiValidation,
+        aiValidationPrompt: config?.aiValidationPrompt,
+      },
+    };
+    
     // 如果没有用户输入，请求回答
     if (!context.userInput) {
       return this.createUserActionOutput('请回答问题', {
@@ -23,30 +39,33 @@ export class QAInteractionExecutor extends BaseStepExecutor<CheckItemConfig> {
       });
     }
     
+    // 添加用户答案
+    apiRequest.answer = String(context.userInput);
+    
     this.updateProgress(context, 50, '正在验证答案...');
     
     try {
-      // 验证答案
-      const validationResult = await this.validateAnswer(
-        String(context.userInput), 
-        config
-      );
+      // 调用后端API
+      const response = await stepApiClient.qaInteraction(apiRequest);
       
       this.updateProgress(context, 100, '问答完成');
       
-      if (validationResult.isValid) {
+      if (response.success && response.data?.success) {
         this.log(context, 'info', '问答验证通过');
-        return this.createSuccessOutput('回答验证通过', {
-          question,
-          answer: context.userInput,
-          validationResult,
-        });
+        return this.createSuccessOutput('回答验证通过', response.data.data);
       } else {
-        this.log(context, 'warn', `问答验证未通过: ${validationResult.reason}`);
-        return this.createErrorOutput(
-          '回答未通过验证', 
-          validationResult.reason
-        );
+        // 检查是否需要用户操作
+        if (response.data?.requiresUserAction) {
+          return {
+            success: false,
+            message: response.data.message,
+            requiresUserAction: true,
+            userActionConfig: response.data.userActionConfig,
+          };
+        }
+        
+        this.log(context, 'warn', `问答验证未通过: ${response.message}`);
+        return this.createErrorOutput('回答未通过验证', response.message);
       }
     } catch (error) {
       this.log(context, 'error', `问答处理失败: ${error}`);
@@ -70,33 +89,5 @@ export class QAInteractionExecutor extends BaseStepExecutor<CheckItemConfig> {
   
   getDescription(): string {
     return '与用户进行问答交互，收集和验证用户的文字回答';
-  }
-  
-  // 私有方法：验证答案
-  private async validateAnswer(
-    answer: string, 
-    config?: CheckItemConfig
-  ): Promise<{ isValid: boolean; reason?: string; score?: number }> {
-    // 模拟验证过程
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // 如果配置了预期答案，进行匹配验证
-    if (config?.expectedAnswer) {
-      const isMatch = answer.toLowerCase().includes(
-        config.expectedAnswer.toLowerCase()
-      );
-      return {
-        isValid: isMatch,
-        reason: isMatch ? undefined : '答案与预期不符',
-        score: isMatch ? 100 : 0,
-      };
-    }
-    
-    // 如果没有预期答案，只要有内容就通过
-    return {
-      isValid: answer.trim().length > 0,
-      reason: answer.trim().length === 0 ? '答案不能为空' : undefined,
-      score: answer.trim().length > 0 ? 100 : 0,
-    };
   }
 }

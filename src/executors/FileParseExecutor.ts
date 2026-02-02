@@ -1,5 +1,7 @@
 import { BaseStepExecutor, StepExecutionContext, StepExecutionOutput } from '@/types/stepExecutor';
 import { CheckItemConfig, StepType } from '@/types/workflow';
+import { stepApiClient } from '@/services/stepApiClient';
+import { FileParseRequest } from '@/types/stepApi';
 
 export class FileParseExecutor extends BaseStepExecutor<CheckItemConfig> {
   readonly stepType: StepType = 'file_parse';
@@ -9,6 +11,14 @@ export class FileParseExecutor extends BaseStepExecutor<CheckItemConfig> {
     
     this.log(context, 'info', '开始文件解析步骤');
     this.updateProgress(context, 0, '等待文件上传...');
+    
+    // 构建API请求
+    const apiRequest: Omit<FileParseRequest, 'stepType'> = {
+      stepId: context.step.id,
+      workflowId: context.workflowId,
+      sessionId: context.sharedData.sessionId as string || crypto.randomUUID(),
+      context: context.sharedData,
+    };
     
     // 如果没有用户输入，请求上传文件
     if (!context.userInput) {
@@ -22,18 +32,51 @@ export class FileParseExecutor extends BaseStepExecutor<CheckItemConfig> {
       });
     }
     
-    this.updateProgress(context, 30, '正在解析文件...');
+    // 添加文件信息到请求
+    const fileInput = context.userInput as { name: string; type: string; size: number; url?: string };
+    apiRequest.file = {
+      id: crypto.randomUUID(),
+      name: fileInput.name || 'unknown',
+      type: fileInput.type || 'application/octet-stream',
+      size: fileInput.size || 0,
+      url: fileInput.url,
+    };
+    
+    // 添加解析选项
+    apiRequest.parseOptions = {
+      extractText: true,
+      extractTables: config?.parseRules?.includes('table'),
+      extractImages: config?.parseRules?.includes('image'),
+      enableOcr: config?.parseRules?.includes('ocr'),
+    };
+    
+    this.updateProgress(context, 30, '正在调用文件解析接口...');
     
     try {
-      // 这里是实际的文件解析逻辑
-      const parseResult = await this.parseFile(context.userInput, config);
+      // 调用后端API
+      const response = await stepApiClient.fileParse(apiRequest);
       
       this.updateProgress(context, 100, '文件解析完成');
-      this.log(context, 'info', '文件解析成功');
       
-      return this.createSuccessOutput('文件解析成功', parseResult);
+      if (response.success && response.data?.success) {
+        this.log(context, 'info', '文件解析成功');
+        return this.createSuccessOutput('文件解析成功', response.data.data);
+      } else {
+        // 检查是否需要用户操作
+        if (response.data?.requiresUserAction) {
+          return {
+            success: false,
+            message: response.data.message,
+            requiresUserAction: true,
+            userActionConfig: response.data.userActionConfig,
+          };
+        }
+        
+        this.log(context, 'error', `文件解析失败: ${response.message}`);
+        return this.createErrorOutput('文件解析失败', response.message);
+      }
     } catch (error) {
-      this.log(context, 'error', `文件解析失败: ${error}`);
+      this.log(context, 'error', `API调用失败: ${error}`);
       return this.createErrorOutput('文件解析失败', String(error));
     }
   }
@@ -55,26 +98,5 @@ export class FileParseExecutor extends BaseStepExecutor<CheckItemConfig> {
   
   getDescription(): string {
     return '解析上传的文件，提取文件内容和结构信息';
-  }
-  
-  // 私有方法：实际的文件解析逻辑
-  private async parseFile(
-    fileInput: unknown, 
-    config?: CheckItemConfig
-  ): Promise<{ fileName: string; content: string; metadata: Record<string, unknown> }> {
-    // 模拟文件解析过程
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // 实际实现时，这里会根据文件类型调用不同的解析器
-    // 例如：PDF解析器、Word解析器、Excel解析器等
-    
-    return {
-      fileName: 'example.pdf',
-      content: '解析后的文件内容...',
-      metadata: {
-        pageCount: 10,
-        parseRules: config?.parseRules,
-      },
-    };
   }
 }

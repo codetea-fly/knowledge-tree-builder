@@ -1,5 +1,7 @@
 import { BaseStepExecutor, StepExecutionContext, StepExecutionOutput } from '@/types/stepExecutor';
 import { CheckItemConfig, StepType } from '@/types/workflow';
+import { stepApiClient } from '@/services/stepApiClient';
+import { SingleSelectRequest } from '@/types/stepApi';
 
 export class SingleSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
   readonly stepType: StepType = 'single_select';
@@ -17,6 +19,22 @@ export class SingleSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
       return this.createErrorOutput('配置错误', '没有可用的选项');
     }
     
+    // 构建API请求
+    const apiRequest: Omit<SingleSelectRequest, 'stepType'> = {
+      stepId: context.step.id,
+      workflowId: context.workflowId,
+      sessionId: context.sharedData.sessionId as string || crypto.randomUUID(),
+      context: context.sharedData,
+      optionsConfig: {
+        options: options.map(opt => ({
+          label: opt.label,
+          value: opt.value,
+          isCorrect: opt.isCorrect,
+        })),
+        shuffle: config?.shuffleOptions,
+      },
+    };
+    
     // 如果没有用户输入，请求选择
     if (!context.userInput) {
       return this.createUserActionOutput('请选择一个选项', {
@@ -28,43 +46,33 @@ export class SingleSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
       });
     }
     
+    // 添加用户选择
+    apiRequest.selectedValue = String(context.userInput);
+    
     this.updateProgress(context, 50, '正在验证选择...');
     
     try {
-      const selectedValue = String(context.userInput);
-      const selectedOption = options.find(opt => opt.value === selectedValue);
-      
-      if (!selectedOption) {
-        return this.createErrorOutput('无效选择', '所选选项不存在');
-      }
+      // 调用后端API
+      const response = await stepApiClient.singleSelect(apiRequest);
       
       this.updateProgress(context, 100, '选择完成');
       
-      // 检查是否选择了正确答案
-      const isCorrect = selectedOption.isCorrect === true;
-      
-      if (isCorrect) {
-        this.log(context, 'info', `选择正确: ${selectedOption.label}`);
-        return this.createSuccessOutput('选择正确', {
-          selectedValue,
-          selectedLabel: selectedOption.label,
-          isCorrect: true,
-        });
+      if (response.success && response.data?.success) {
+        this.log(context, 'info', `选择完成: ${response.data.data?.selectedLabel}`);
+        return this.createSuccessOutput(response.data.message, response.data.data);
       } else {
-        // 如果有正确答案配置，选错则失败
-        const hasCorrectAnswer = options.some(opt => opt.isCorrect);
-        if (hasCorrectAnswer) {
-          this.log(context, 'warn', `选择错误: ${selectedOption.label}`);
-          return this.createErrorOutput('选择错误', `您选择了 "${selectedOption.label}"，这不是正确答案`);
+        // 检查是否需要用户操作
+        if (response.data?.requiresUserAction) {
+          return {
+            success: false,
+            message: response.data.message,
+            requiresUserAction: true,
+            userActionConfig: response.data.userActionConfig,
+          };
         }
         
-        // 没有正确答案配置，任何选择都算通过
-        this.log(context, 'info', `已选择: ${selectedOption.label}`);
-        return this.createSuccessOutput('选择完成', {
-          selectedValue,
-          selectedLabel: selectedOption.label,
-          isCorrect: null,
-        });
+        this.log(context, 'warn', `选择验证未通过: ${response.message}`);
+        return this.createErrorOutput(response.data?.message || '选择错误', response.message);
       }
     } catch (error) {
       this.log(context, 'error', `单选处理失败: ${error}`);

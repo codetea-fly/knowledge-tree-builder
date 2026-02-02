@@ -1,5 +1,7 @@
 import { BaseStepExecutor, StepExecutionContext, StepExecutionOutput } from '@/types/stepExecutor';
 import { CheckItemConfig, StepType } from '@/types/workflow';
+import { stepApiClient } from '@/services/stepApiClient';
+import { MultiSelectRequest } from '@/types/stepApi';
 
 export class MultiSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
   readonly stepType: StepType = 'multi_select';
@@ -17,6 +19,24 @@ export class MultiSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
       return this.createErrorOutput('配置错误', '没有可用的选项');
     }
     
+    // 构建API请求
+    const apiRequest: Omit<MultiSelectRequest, 'stepType'> = {
+      stepId: context.step.id,
+      workflowId: context.workflowId,
+      sessionId: context.sharedData.sessionId as string || crypto.randomUUID(),
+      context: context.sharedData,
+      optionsConfig: {
+        options: options.map(opt => ({
+          label: opt.label,
+          value: opt.value,
+          isCorrect: opt.isCorrect,
+        })),
+        minSelect: config?.minSelect,
+        maxSelect: config?.maxSelect,
+        shuffle: config?.shuffleOptions,
+      },
+    };
+    
     // 如果没有用户输入，请求选择
     if (!context.userInput) {
       return this.createUserActionOutput('请选择一个或多个选项', {
@@ -28,75 +48,36 @@ export class MultiSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
       });
     }
     
+    // 添加用户选择
+    apiRequest.selectedValues = Array.isArray(context.userInput) 
+      ? context.userInput.map(String)
+      : [String(context.userInput)];
+    
     this.updateProgress(context, 50, '正在验证选择...');
     
     try {
-      // 用户输入应该是选中值的数组
-      const selectedValues = Array.isArray(context.userInput) 
-        ? context.userInput.map(String)
-        : [String(context.userInput)];
-      
-      // 验证所有选择的有效性
-      const selectedOptions = selectedValues.map(val => 
-        options.find(opt => opt.value === val)
-      ).filter(Boolean);
-      
-      if (selectedOptions.length !== selectedValues.length) {
-        return this.createErrorOutput('无效选择', '部分所选选项不存在');
-      }
-      
-      if (selectedOptions.length === 0) {
-        return this.createErrorOutput('未选择', '请至少选择一个选项');
-      }
+      // 调用后端API
+      const response = await stepApiClient.multiSelect(apiRequest);
       
       this.updateProgress(context, 100, '选择完成');
       
-      // 检查正确答案
-      const correctOptions = options.filter(opt => opt.isCorrect);
-      const hasCorrectAnswers = correctOptions.length > 0;
-      
-      if (hasCorrectAnswers) {
-        // 计算得分
-        const correctValues = new Set(correctOptions.map(opt => opt.value));
-        const selectedSet = new Set(selectedValues);
-        
-        // 计算正确选中的数量
-        const correctSelected = selectedValues.filter(v => correctValues.has(v)).length;
-        // 计算错误选中的数量
-        const incorrectSelected = selectedValues.filter(v => !correctValues.has(v)).length;
-        // 计算遗漏的正确选项数量
-        const missedCorrect = correctOptions.filter(opt => !selectedSet.has(opt.value)).length;
-        
-        const isFullyCorrect = correctSelected === correctOptions.length && incorrectSelected === 0;
-        
-        if (isFullyCorrect) {
-          this.log(context, 'info', '多选完全正确');
-          return this.createSuccessOutput('选择完全正确', {
-            selectedValues,
-            selectedLabels: selectedOptions.map(opt => opt!.label),
-            score: 100,
-            isFullyCorrect: true,
-          });
-        } else {
-          const score = Math.max(0, 
-            Math.round((correctSelected / correctOptions.length) * 100 - incorrectSelected * 20)
-          );
-          
-          this.log(context, 'warn', `多选部分正确，得分: ${score}`);
-          return this.createErrorOutput(
-            '选择不完全正确',
-            `正确选中 ${correctSelected} 项，错误选中 ${incorrectSelected} 项，遗漏 ${missedCorrect} 项`
-          );
+      if (response.success && response.data?.success) {
+        this.log(context, 'info', `多选完成，得分: ${response.data.data?.score}`);
+        return this.createSuccessOutput(response.data.message, response.data.data);
+      } else {
+        // 检查是否需要用户操作
+        if (response.data?.requiresUserAction) {
+          return {
+            success: false,
+            message: response.data.message,
+            requiresUserAction: true,
+            userActionConfig: response.data.userActionConfig,
+          };
         }
+        
+        this.log(context, 'warn', `多选验证未通过: ${response.message}`);
+        return this.createErrorOutput(response.data?.message || '选择不完全正确', response.message);
       }
-      
-      // 没有正确答案配置，任何选择都算通过
-      this.log(context, 'info', `已选择 ${selectedOptions.length} 项`);
-      return this.createSuccessOutput('选择完成', {
-        selectedValues,
-        selectedLabels: selectedOptions.map(opt => opt!.label),
-        isFullyCorrect: null,
-      });
     } catch (error) {
       this.log(context, 'error', `多选处理失败: ${error}`);
       return this.createErrorOutput('处理失败', String(error));
