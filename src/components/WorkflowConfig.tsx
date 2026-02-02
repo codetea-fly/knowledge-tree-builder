@@ -3,6 +3,7 @@ import { WorkflowProvider, useWorkflow } from '@/context/WorkflowContext';
 import { WorkflowLibraryPanel } from './workflow/WorkflowLibraryPanel';
 import { WorkflowDetailPanel } from './workflow/WorkflowDetailPanel';
 
+// Content component that uses the WorkflowContext
 const WorkflowConfigContent: React.FC = () => {
   const { selectedWorkflow } = useWorkflow();
 
