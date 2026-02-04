@@ -70,7 +70,16 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const selectedWorkflow = library.workflows.find(w => w.id === selectedWorkflowId) || null;
 
-  // 保存到本地
+  // 编辑后自动保存到本地
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
+    } catch (e) {
+      console.error('Failed to auto-save workflow library:', e);
+    }
+  }, [library]);
+
+  // 保存到本地（手动触发，带提示）
   const saveToLocal = useCallback(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
