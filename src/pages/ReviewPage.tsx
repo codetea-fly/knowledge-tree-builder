@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { WorkflowProvider, useWorkflow } from '@/context/WorkflowContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -20,13 +20,13 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { 
-  ReviewWorkflow, 
   WorkflowStep, 
   StepExecutionResult, 
   ReviewExecutionResult,
 } from '@/types/workflow';
 import { Link } from 'react-router-dom';
 import { WorkflowCanvas } from '@/components/workflow/WorkflowCanvas';
+import { StepInteractionPanel, isInteractiveStep } from '@/components/review';
 
 const ReviewPageContent: React.FC = () => {
   const { library } = useWorkflow();
@@ -34,6 +34,11 @@ const ReviewPageContent: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [executionResult, setExecutionResult] = useState<ReviewExecutionResult | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  
+  // 交互式步骤状态
+  const [currentInteractiveStep, setCurrentInteractiveStep] = useState<WorkflowStep | null>(null);
+  const [isPendingUserInput, setIsPendingUserInput] = useState(false);
+  const userInputResolverRef = useRef<((data: unknown) => void) | null>(null);
 
   const selectedWorkflow = library.workflows.find(w => w.id === selectedWorkflowId);
   const getWorkflow = useCallback((id: string) => library.workflows.find(w => w.id === id), [library.workflows]);
@@ -78,29 +83,68 @@ const ReviewPageContent: React.FC = () => {
 
     setExecutionResult(result);
 
+    // 查找步骤定义
+    const findStepById = (stepId: string, steps: WorkflowStep[]): WorkflowStep | undefined => {
+      for (const step of steps) {
+        if (step.id === stepId) return step;
+        if (step.children) {
+          const found = findStepById(stepId, step.children);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+
+    // 等待用户输入
+    const waitForUserInput = (step: WorkflowStep): Promise<unknown> => {
+      return new Promise((resolve) => {
+        setCurrentInteractiveStep(step);
+        setIsPendingUserInput(true);
+        userInputResolverRef.current = resolve;
+      });
+    };
+
     // 递归执行步骤
     const executeSteps = async (
       stepResults: StepExecutionResult[],
+      steps: WorkflowStep[],
       updateResult: () => void
     ) => {
-      for (const stepResult of stepResults) {
+      for (let i = 0; i < stepResults.length; i++) {
+        const stepResult = stepResults[i];
+        const step = steps[i] || findStepById(stepResult.stepId, selectedWorkflow.steps);
+        
         // 设置为运行中
         stepResult.status = 'running';
         stepResult.startTime = new Date().toISOString();
         updateResult();
         
-        // 模拟执行（等待2秒）
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
         // 如果是子流程，递归执行
         if (stepResult.subWorkflowResults && stepResult.subWorkflowResults.length > 0) {
-          await executeSteps(stepResult.subWorkflowResults, updateResult);
+          const subWorkflow = getWorkflow(step?.subWorkflowConfig?.workflowId || '');
+          if (subWorkflow) {
+            await executeSteps(stepResult.subWorkflowResults, subWorkflow.steps, updateResult);
+          }
           
           // 检查子流程是否全部成功
           const subFailed = stepResult.subWorkflowResults.some(r => r.status === 'failed');
           stepResult.status = subFailed ? 'failed' : 'success';
+        } else if (step && isInteractiveStep(step.stepType)) {
+          // 交互式步骤：等待用户输入
+          const userInput = await waitForUserInput(step);
+          setCurrentInteractiveStep(null);
+          setIsPendingUserInput(false);
+          
+          // TODO: 将用户输入传递给执行器进行处理
+          // 现在使用模拟结果
+          const shouldFail = Math.random() < 0.2;
+          stepResult.status = shouldFail ? 'failed' : 'success';
+          stepResult.message = shouldFail ? '检查未通过，存在不符合项' : '检查通过';
+          
+          console.log('用户输入数据:', userInput);
         } else {
-          // 随机决定是否失败（约20%概率）
+          // 非交互式步骤：模拟执行
+          await new Promise(resolve => setTimeout(resolve, 1500));
           const shouldFail = Math.random() < 0.2;
           stepResult.status = shouldFail ? 'failed' : 'success';
           stepResult.message = shouldFail ? '检查未通过，存在不符合项' : '检查通过';
@@ -112,7 +156,7 @@ const ReviewPageContent: React.FC = () => {
       }
     };
 
-    await executeSteps(result.stepResults, () => {
+    await executeSteps(result.stepResults, selectedWorkflow.steps, () => {
       setExecutionResult({ ...result });
     });
 
@@ -142,7 +186,26 @@ const ReviewPageContent: React.FC = () => {
   const resetReview = () => {
     setExecutionResult(null);
     setCurrentStepIndex(0);
+    setCurrentInteractiveStep(null);
+    setIsPendingUserInput(false);
   };
+
+  // 处理用户交互提交
+  const handleUserInputSubmit = useCallback((data: unknown) => {
+    if (userInputResolverRef.current) {
+      userInputResolverRef.current(data);
+      userInputResolverRef.current = null;
+    }
+  }, []);
+
+  // 使用Mock数据
+  const handleUseMock = useCallback(() => {
+    const mockData = {
+      isMock: true,
+      timestamp: new Date().toISOString(),
+    };
+    handleUserInputSubmit(mockData);
+  }, [handleUserInputSubmit]);
 
   // 计算总步骤数
   const getTotalSteps = useCallback((steps: WorkflowStep[]): number => {
@@ -329,6 +392,21 @@ const ReviewPageContent: React.FC = () => {
             </Card>
           )}
         </div>
+
+        {/* Middle Panel - Interactive Step UI */}
+        {isPendingUserInput && currentInteractiveStep && (
+          <div className="w-[400px] border-r border-border bg-background p-4 overflow-auto">
+            <div className="mb-4">
+              <h3 className="font-semibold text-foreground">步骤交互</h3>
+              <p className="text-sm text-muted-foreground">请完成以下操作以继续审核流程</p>
+            </div>
+            <StepInteractionPanel
+              step={currentInteractiveStep}
+              onSubmit={handleUserInputSubmit}
+              onUseMock={handleUseMock}
+            />
+          </div>
+        )}
 
         {/* Right Panel - Canvas Preview */}
         <div className="flex-1 overflow-hidden">
