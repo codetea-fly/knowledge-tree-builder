@@ -26,7 +26,7 @@ import {
 } from '@/types/workflow';
 import { Link } from 'react-router-dom';
 import { WorkflowCanvas } from '@/components/workflow/WorkflowCanvas';
-import { StepInteractionPanel, isInteractiveStep } from '@/components/review';
+import { StepInteractionPanel, isInteractiveStep, BackgroundUploadPanel, UploadedFileInfo } from '@/components/review';
 
 const ReviewPageContent: React.FC = () => {
   const { library } = useWorkflow();
@@ -39,6 +39,11 @@ const ReviewPageContent: React.FC = () => {
   const [currentInteractiveStep, setCurrentInteractiveStep] = useState<WorkflowStep | null>(null);
   const [isPendingUserInput, setIsPendingUserInput] = useState(false);
   const userInputResolverRef = useRef<((data: unknown) => void) | null>(null);
+  
+  // 背景文件上传状态
+  const [isPendingBackgroundUpload, setIsPendingBackgroundUpload] = useState(false);
+  const [backgroundFiles, setBackgroundFiles] = useState<Record<string, UploadedFileInfo> | null>(null);
+  const backgroundUploadResolverRef = useRef<((files: Record<string, UploadedFileInfo>) => void) | null>(null);
 
   const selectedWorkflow = library.workflows.find(w => w.id === selectedWorkflowId);
   const getWorkflow = useCallback((id: string) => library.workflows.find(w => w.id === id), [library.workflows]);
@@ -46,6 +51,19 @@ const ReviewPageContent: React.FC = () => {
   // 执行审核
   const runReview = useCallback(async () => {
     if (!selectedWorkflow) return;
+
+    // 检查是否需要上传背景文件
+    const hasBackgroundConfig = selectedWorkflow.backgroundConfig?.requiredFiles?.length;
+    
+    if (hasBackgroundConfig && !backgroundFiles) {
+      // 等待用户上传背景文件
+      const uploadedFiles = await new Promise<Record<string, UploadedFileInfo>>((resolve) => {
+        setIsPendingBackgroundUpload(true);
+        backgroundUploadResolverRef.current = resolve;
+      });
+      setBackgroundFiles(uploadedFiles);
+      setIsPendingBackgroundUpload(false);
+    }
 
     setIsRunning(true);
     setCurrentStepIndex(0);
@@ -181,13 +199,15 @@ const ReviewPageContent: React.FC = () => {
     
     setExecutionResult({ ...result });
     setIsRunning(false);
-  }, [selectedWorkflow, getWorkflow]);
+  }, [selectedWorkflow, getWorkflow, backgroundFiles]);
 
   const resetReview = () => {
     setExecutionResult(null);
     setCurrentStepIndex(0);
     setCurrentInteractiveStep(null);
     setIsPendingUserInput(false);
+    setIsPendingBackgroundUpload(false);
+    setBackgroundFiles(null);
   };
 
   // 处理用户交互提交
@@ -198,7 +218,7 @@ const ReviewPageContent: React.FC = () => {
     }
   }, []);
 
-  // 使用Mock数据
+  // 使用Mock数据（步骤交互）
   const handleUseMock = useCallback(() => {
     const mockData = {
       isMock: true,
@@ -206,6 +226,28 @@ const ReviewPageContent: React.FC = () => {
     };
     handleUserInputSubmit(mockData);
   }, [handleUserInputSubmit]);
+
+  // 处理背景文件上传完成
+  const handleBackgroundUploadComplete = useCallback((files: Record<string, UploadedFileInfo>) => {
+    if (backgroundUploadResolverRef.current) {
+      backgroundUploadResolverRef.current(files);
+      backgroundUploadResolverRef.current = null;
+    }
+  }, []);
+
+  // 使用Mock数据（背景文件）
+  const handleBackgroundUseMock = useCallback(() => {
+    const mockFiles: Record<string, UploadedFileInfo> = {};
+    selectedWorkflow?.backgroundConfig?.requiredFiles?.forEach(file => {
+      mockFiles[file.id] = {
+        name: `mock_${file.label}.pdf`,
+        size: 1024 * 1024,
+        type: 'application/pdf',
+        uploadedAt: new Date().toISOString(),
+      };
+    });
+    handleBackgroundUploadComplete(mockFiles);
+  }, [selectedWorkflow, handleBackgroundUploadComplete]);
 
   // 计算总步骤数
   const getTotalSteps = useCallback((steps: WorkflowStep[]): number => {
@@ -393,8 +435,22 @@ const ReviewPageContent: React.FC = () => {
           )}
         </div>
 
-        {/* Middle Panel - Interactive Step UI */}
-        {isPendingUserInput && currentInteractiveStep && (
+        {/* Middle Panel - Background Upload or Step Interaction */}
+        {isPendingBackgroundUpload && selectedWorkflow?.backgroundConfig && (
+          <div className="w-[400px] border-r border-border bg-background p-4 overflow-auto">
+            <div className="mb-4">
+              <h3 className="font-semibold text-foreground">上传审核资料</h3>
+              <p className="text-sm text-muted-foreground">请上传审核所需的背景文件</p>
+            </div>
+            <BackgroundUploadPanel
+              config={selectedWorkflow.backgroundConfig}
+              onComplete={handleBackgroundUploadComplete}
+              onUseMock={handleBackgroundUseMock}
+            />
+          </div>
+        )}
+        
+        {!isPendingBackgroundUpload && isPendingUserInput && currentInteractiveStep && (
           <div className="w-[400px] border-r border-border bg-background p-4 overflow-auto">
             <div className="mb-4">
               <h3 className="font-semibold text-foreground">步骤交互</h3>

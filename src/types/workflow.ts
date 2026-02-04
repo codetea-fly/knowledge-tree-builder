@@ -58,6 +58,21 @@ export interface CheckItemConfig {
   memoryLimit?: number;
 }
 
+// 背景文件配置
+export interface BackgroundFileConfig {
+  id: string;
+  label: string;           // 显示名称，如 "程序文件"
+  description?: string;    // 描述说明
+  required: boolean;       // 是否必须上传
+  fileTypes?: string[];    // 允许的文件类型，如 ['pdf', 'docx']
+}
+
+// 背景配置
+export interface BackgroundConfig {
+  description?: string;              // 背景描述
+  requiredFiles: BackgroundFileConfig[];  // 需要上传的文件列表
+}
+
 // 子流程配置
 export interface SubWorkflowConfig {
   workflowId: string;
@@ -88,6 +103,8 @@ export interface ReviewWorkflow {
   createdAt: string;
   updatedAt: string;
   steps: WorkflowStep[];
+  // 背景配置
+  backgroundConfig?: BackgroundConfig;
 }
 
 // 流程库
@@ -123,6 +140,14 @@ export interface ReviewExecutionResult {
 
 // 生成唯一ID
 export const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+// 创建默认背景文件配置
+export const createDefaultBackgroundFile = (): BackgroundFileConfig => ({
+  id: generateId(),
+  label: '新文件',
+  required: true,
+  fileTypes: ['pdf', 'doc', 'docx'],
+});
 
 // 默认流程
 export const createDefaultWorkflow = (): ReviewWorkflow => ({
