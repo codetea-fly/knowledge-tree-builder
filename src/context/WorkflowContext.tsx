@@ -28,8 +28,9 @@ interface WorkflowContextType {
   updateStep: (workflowId: string, stepId: string, updates: Partial<WorkflowStep>) => void;
   deleteStep: (workflowId: string, stepId: string) => void;
   
-  // 导出与保存
+  // 导入导出与保存
   exportWorkflow: (id: string) => void;
+  importWorkflow: (file: File) => Promise<void>;
   saveToLocal: () => void;
   loadFromLocal: () => void;
   
@@ -315,6 +316,62 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     toast.success('流程已导出');
   }, [library.workflows]);
 
+  const importWorkflow = useCallback(async (file: File): Promise<void> => {
+    try {
+      const text = await file.text();
+      const imported = JSON.parse(text) as ReviewWorkflow;
+      
+      // 验证基本结构
+      if (!imported || typeof imported !== 'object') {
+        throw new Error('无效的流程文件格式');
+      }
+      if (!imported.name || typeof imported.name !== 'string') {
+        throw new Error('流程缺少名称');
+      }
+      if (!Array.isArray(imported.steps)) {
+        throw new Error('流程缺少步骤数组');
+      }
+      
+      // 重新生成ID以避免冲突
+      const newWorkflow: ReviewWorkflow = {
+        ...imported,
+        id: generateId(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      // 确保名称唯一
+      const existingNames = library.workflows.map(w => w.name);
+      let name = newWorkflow.name;
+      let counter = 1;
+      while (existingNames.includes(name)) {
+        name = `${imported.name} (${counter})`;
+        counter++;
+      }
+      newWorkflow.name = name;
+      
+      // 重新生成所有步骤ID
+      const regenerateStepIds = (steps: WorkflowStep[]): WorkflowStep[] => {
+        return steps.map(step => ({
+          ...step,
+          id: generateId(),
+          children: step.children ? regenerateStepIds(step.children) : undefined,
+        }));
+      };
+      newWorkflow.steps = regenerateStepIds(newWorkflow.steps);
+      
+      setLibrary(prev => ({
+        ...prev,
+        workflows: [...prev.workflows, newWorkflow],
+      }));
+      setSelectedWorkflowId(newWorkflow.id);
+      toast.success(`流程 "${newWorkflow.name}" 导入成功`);
+    } catch (e) {
+      console.error('Failed to import workflow:', e);
+      toast.error(e instanceof Error ? e.message : '导入失败，请检查文件格式');
+    }
+  }, [library.workflows]);
+
   // 获取流程引用的所有子流程ID（递归）
   const getReferencedWorkflowIds = useCallback((workflowId: string, visited: Set<string> = new Set()): Set<string> => {
     if (visited.has(workflowId)) return visited;
@@ -376,6 +433,7 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       updateStep,
       deleteStep,
       exportWorkflow,
+      importWorkflow,
       saveToLocal,
       loadFromLocal,
       checkCircularReference,

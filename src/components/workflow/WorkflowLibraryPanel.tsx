@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useWorkflow } from '@/context/WorkflowContext';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -13,6 +13,7 @@ import {
   FolderOpen,
   Download,
   Upload,
+  FileUp,
   FileText,
   MessageSquare,
   CheckCircle,
@@ -90,11 +91,13 @@ export const WorkflowLibraryPanel: React.FC = () => {
     selectedWorkflowId, 
     selectWorkflow, 
     addWorkflow,
+    importWorkflow,
     saveToLocal,
     loadFromLocal,
   } = useWorkflow();
 
   const [expandedWorkflows, setExpandedWorkflows] = useState<Set<string>>(new Set());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleWorkflowExpand = (workflowId: string) => {
     setExpandedWorkflows(prev => {
@@ -106,6 +109,19 @@ export const WorkflowLibraryPanel: React.FC = () => {
       }
       return next;
     });
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await importWorkflow(file);
+      // Reset input so the same file can be imported again if needed
+      e.target.value = '';
+    }
   };
 
   return (
@@ -130,6 +146,19 @@ export const WorkflowLibraryPanel: React.FC = () => {
           <Button size="sm" variant="ghost" className="flex-1 h-7 text-xs" onClick={loadFromLocal}>
             <Upload className="h-3 w-3 mr-1" />
             加载
+          </Button>
+        </div>
+        <div className="mt-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <Button size="sm" variant="outline" className="w-full h-7 text-xs" onClick={handleImportClick}>
+            <FileUp className="h-3 w-3 mr-1" />
+            导入流程 JSON
           </Button>
         </div>
       </div>
