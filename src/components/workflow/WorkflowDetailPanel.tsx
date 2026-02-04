@@ -7,6 +7,11 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -24,10 +29,13 @@ import {
   Copy,
   Plus,
   Settings2,
+  ChevronDown,
+  FileText,
 } from 'lucide-react';
-import { WorkflowStep, STEP_TYPES, createDefaultStep, StepType } from '@/types/workflow';
+import { WorkflowStep, STEP_TYPES, createDefaultStep, StepType, BackgroundConfig } from '@/types/workflow';
 import { WorkflowStepCard } from './WorkflowStepCard';
 import { AddStepDialog } from './AddStepDialog';
+import { BackgroundConfigEditor } from './BackgroundConfigEditor';
 import { toast } from 'sonner';
 
 export const WorkflowDetailPanel: React.FC = () => {
@@ -42,11 +50,16 @@ export const WorkflowDetailPanel: React.FC = () => {
   } = useWorkflow();
   
   const [showAddStepDialog, setShowAddStepDialog] = useState(false);
+  const [backgroundConfigOpen, setBackgroundConfigOpen] = useState(true);
 
   if (!selectedWorkflow) return null;
 
-  const handleUpdateField = (field: string, value: any) => {
+  const handleUpdateField = (field: string, value: unknown) => {
     updateWorkflow({ ...selectedWorkflow, [field]: value });
+  };
+
+  const handleBackgroundConfigChange = (config: BackgroundConfig) => {
+    updateWorkflow({ ...selectedWorkflow, backgroundConfig: config });
   };
 
   const handleAddStep = (stepType: StepType) => {
@@ -136,6 +149,30 @@ export const WorkflowDetailPanel: React.FC = () => {
             />
           </div>
         </div>
+
+        {/* 背景配置 */}
+        <Collapsible open={backgroundConfigOpen} onOpenChange={setBackgroundConfigOpen}>
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between cursor-pointer hover:bg-muted/30 p-2 rounded-md -mx-2 mt-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">背景配置</span>
+                {selectedWorkflow.backgroundConfig?.requiredFiles?.length ? (
+                  <span className="text-xs text-muted-foreground">
+                    ({selectedWorkflow.backgroundConfig.requiredFiles.length} 个文件要求)
+                  </span>
+                ) : null}
+              </div>
+              <ChevronDown className={`h-4 w-4 transition-transform ${backgroundConfigOpen ? 'rotate-180' : ''}`} />
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2">
+            <BackgroundConfigEditor
+              config={selectedWorkflow.backgroundConfig}
+              onChange={handleBackgroundConfigChange}
+            />
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       {/* Steps Header */}
