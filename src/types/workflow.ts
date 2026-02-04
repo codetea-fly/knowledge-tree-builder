@@ -46,7 +46,7 @@ export interface CheckItemConfig {
   aiValidationPrompt?: string;
   
   // 单选/多选配置
-  options?: { label: string; value: string; isCorrect?: boolean }[];
+  options?: { label: string; value: string; description?: string; isCorrect?: boolean }[];
   shuffleOptions?: boolean;
   minSelect?: number;
   maxSelect?: number;
