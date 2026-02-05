@@ -123,6 +123,15 @@ export interface StepExecutionResult {
   message?: string;
   startTime?: string;
   endTime?: string;
+  // 审核结果数据
+  data?: {
+    auditResult?: {
+      passed: boolean;
+      reason: string;
+      details?: string;
+    };
+    [key: string]: unknown;
+  };
   // 子流程执行结果
   subWorkflowResults?: StepExecutionResult[];
 }

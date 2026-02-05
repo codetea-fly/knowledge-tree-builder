@@ -101,6 +101,13 @@ export interface ExecutionLog {
 
 // ==================== 文件解析API ====================
 
+// 统一审核步骤结果（大模型返回格式）
+export interface AuditStepResult {
+  passed: boolean;
+  reason: string;    // 不通过原因，仅当 passed 为 false 时有效
+  details?: string;  // 可选，审核详情或改进建议
+}
+
 export interface FileParseRequest extends StepExecutionRequest {
   stepType: 'file_parse';
   // 文件信息
@@ -126,12 +133,18 @@ export interface FileParseRequest extends StepExecutionRequest {
     // 页码范围
     pageRange?: { start: number; end: number };
   };
+  // 审核背景、背景技术文件、解析规则（用于大模型审核）
+  reviewBackground?: string;
+  backgroundFiles?: Array<{ fileName?: string; name?: string; textContent?: string; content?: string }>;
+  checkConfig?: { parseRules?: string; fileTypes?: string[] };
 }
 
 export interface FileParseResponse extends StepExecutionResponse {
   data?: {
     // 解析后的文本内容
     textContent?: string;
+    // 大模型审核结果
+    auditResult?: AuditStepResult;
     // 提取的表格数据
     tables?: Array<{
       name: string;

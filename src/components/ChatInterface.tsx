@@ -8,8 +8,11 @@ import { Send, Loader2, TreeDeciduous, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ============================================
-// 预留的后端AI接口调用位置
+// 预留的 LLM 配置（appId、Authorization 可配置，其他接口可传不同值）
 // ============================================
+const CHAT_APP_ID = import.meta.env.VITE_CHAT_APP_ID ?? '69267aea013a61eaaa033518';
+const CHAT_AUTH_TOKEN = import.meta.env.VITE_CHAT_AUTH_TOKEN ?? 'fastgpt-griiY9jCGi1QO45y6zX8N0VKibNxFKU9I3AU3t2Fdgb9bbKFeaqqJi872t';
+
 interface ChatRequestParams {
   message: string;
   chatId: string;
@@ -28,10 +31,10 @@ async function* streamChatResponse(params: ChatRequestParams): AsyncGenerator<St
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer fastgpt-griiY9jCGi1QO45y6zX8N0VKibNxFKU9I3AU3t2Fdgb9bbKFeaqqJi872t',
+      'Authorization': `Bearer ${CHAT_AUTH_TOKEN}`,
     },
     body: JSON.stringify({
-      appId:'69267aea013a61eaaa033518',
+      appId: CHAT_APP_ID,
       chatId: params.chatId,
       stream: true,
       detail: false,

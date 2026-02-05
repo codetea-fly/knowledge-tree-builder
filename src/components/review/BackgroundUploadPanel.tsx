@@ -17,6 +17,8 @@ export interface UploadedFileInfo {
   size: number;
   type: string;
   uploadedAt: string;
+  textContent?: string;
+  file?: File;
 }
 
 export const BackgroundUploadPanel: React.FC<BackgroundUploadPanelProps> = ({
@@ -32,7 +34,15 @@ export const BackgroundUploadPanel: React.FC<BackgroundUploadPanelProps> = ({
     .filter(f => f.required)
     .every(f => uploadedFiles[f.id]);
 
-  const handleFileSelect = useCallback((fileConfig: BackgroundFileConfig, file: globalThis.File) => {
+  const handleFileSelect = useCallback(async (fileConfig: BackgroundFileConfig, file: globalThis.File) => {
+    // 读取文件文本内容
+    let textContent = '';
+    try {
+      textContent = await file.text();
+    } catch (e) {
+      console.warn('无法读取文件内容:', e);
+    }
+    
     setUploadedFiles(prev => ({
       ...prev,
       [fileConfig.id]: {
@@ -40,6 +50,8 @@ export const BackgroundUploadPanel: React.FC<BackgroundUploadPanelProps> = ({
         size: file.size,
         type: file.type,
         uploadedAt: new Date().toISOString(),
+        textContent,
+        file,
       },
     }));
   }, []);

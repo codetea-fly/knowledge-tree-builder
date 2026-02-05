@@ -18,10 +18,19 @@ export class FileParseExecutor extends BaseStepExecutor<CheckItemConfig> {
       workflowId: context.workflowId,
       sessionId: context.sharedData.sessionId as string || crypto.randomUUID(),
       context: context.sharedData,
+      // 审核背景与参考文件（用于大模型审核）
+      reviewBackground: context.sharedData.reviewBackground as string | undefined,
+      backgroundFiles: context.sharedData.backgroundFiles as FileParseRequest['backgroundFiles'],
+      checkConfig: config ? {
+        parseRules: config.parseRules,
+        fileTypes: config.fileTypes,
+      } : undefined,
     };
     
     // 如果没有用户输入，请求上传文件
+    console.log('FileParseExecutor context.userInput:', context.userInput);
     if (!context.userInput) {
+      console.log('FileParseExecutor: 没有用户输入，请求上传文件');
       return this.createUserActionOutput('请上传需要解析的文件', {
         type: 'file',
         title: '上传文件',
@@ -32,15 +41,26 @@ export class FileParseExecutor extends BaseStepExecutor<CheckItemConfig> {
       });
     }
     
-    // 添加文件信息到请求
-    const fileInput = context.userInput as { name: string; type: string; size: number; url?: string };
+    // 添加文件信息与文本内容到请求
+    const fileInput = context.userInput as {
+      file?: File;
+      name?: string;
+      type?: string;
+      size?: number;
+      url?: string;
+      textContent?: string;
+    };
+    const realFile = fileInput.file; // 获取真实的 File 对象
     apiRequest.file = {
       id: crypto.randomUUID(),
-      name: fileInput.name || 'unknown',
-      type: fileInput.type || 'application/octet-stream',
-      size: fileInput.size || 0,
+      name: fileInput.name || realFile?.name || 'unknown',
+      type: fileInput.type || realFile?.type || 'application/octet-stream',
+      size: fileInput.size || realFile?.size || 0,
       url: fileInput.url,
     };
+    if (fileInput.textContent) {
+      apiRequest.textContent = fileInput.textContent;
+    }
     
     // 添加解析选项
     apiRequest.parseOptions = {
@@ -53,8 +73,10 @@ export class FileParseExecutor extends BaseStepExecutor<CheckItemConfig> {
     this.updateProgress(context, 30, '正在调用文件解析接口...');
     
     try {
-      // 调用后端API
-      const response = await stepApiClient.fileParse(apiRequest);
+      // 调用后端API，传递真实的 File 对象
+      console.log("file_parse....", { apiRequest, realFile });
+      const response = await stepApiClient.fileParse(apiRequest, realFile);
+      console.log("file_parse response:", response);
       
       this.updateProgress(context, 100, '文件解析完成');
       
@@ -71,9 +93,16 @@ export class FileParseExecutor extends BaseStepExecutor<CheckItemConfig> {
             userActionConfig: response.data.userActionConfig,
           };
         }
-        
+        // 审核未通过时保留 auditResult 供 UI 展示
+        const auditData = response.data?.data as { auditResult?: { passed: boolean; reason: string; details?: string } } | undefined;
+        const outputData = auditData?.auditResult ? { auditResult: auditData.auditResult } : undefined;
         this.log(context, 'error', `文件解析失败: ${response.message}`);
-        return this.createErrorOutput('文件解析失败', response.message);
+        return {
+          success: false,
+          message: response.message,
+          error: response.message,
+          data: outputData,
+        };
       }
     } catch (error) {
       this.log(context, 'error', `API调用失败: ${error}`);

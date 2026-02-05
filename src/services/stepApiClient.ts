@@ -44,9 +44,9 @@ export interface ApiClientConfig {
 
 // 默认配置
 const defaultConfig: ApiClientConfig = {
-  baseUrl: '/api',
+  baseUrl: 'http://localhost:8000',
   timeout: 30000,
-  mockMode: true, // 默认使用mock模式
+  mockMode: false, // 使用真实后端接口
   retryCount: 3,
   retryDelay: 1000,
 };
@@ -92,8 +92,85 @@ export class StepApiClient {
 
   // ==================== 特定步骤类型的快捷方法 ====================
 
-  async fileParse(request: Omit<FileParseRequest, 'stepType'>): Promise<ApiResponse<FileParseResponse>> {
-    return this.executeStep('file_parse', { ...request, stepType: 'file_parse' });
+  async fileParse(
+    request: Omit<FileParseRequest, 'stepType'>,
+    file?: File
+  ): Promise<ApiResponse<FileParseResponse>> {
+    if (this.config.mockMode) {
+      return this.executeStep('file_parse', { ...request, stepType: 'file_parse' });
+    }
+    return this.executeFileParseReal(request, file);
+  }
+
+  private async executeFileParseReal(
+    request: Omit<FileParseRequest, 'stepType'>,
+    file?: File
+  ): Promise<ApiResponse<FileParseResponse>> {
+    const endpoint = stepApiEndpoints['file_parse'];
+    const url = `${this.config.baseUrl}${endpoint.path}`;
+
+    const formData = new FormData();
+    if (file) {
+      formData.append('file', file);
+    }
+    formData.append('stepId', request.stepId);
+    formData.append('workflowId', request.workflowId);
+    formData.append('sessionId', request.sessionId);
+    if (request.reviewBackground) {
+      formData.append('reviewBackground', request.reviewBackground);
+    }
+    if (request.backgroundFiles) {
+      formData.append('backgroundFiles', JSON.stringify(request.backgroundFiles));
+    }
+    if (request.checkConfig?.parseRules) {
+      formData.append('parseRules', request.checkConfig.parseRules);
+    }
+    if (request.textContent) {
+      formData.append('textContent', request.textContent);
+    }
+
+    const headers: Record<string, string> = {
+      ...this.config.headers,
+    };
+
+    if (this.config.authToken) {
+      headers['Authorization'] = `Bearer ${this.config.authToken}`;
+    }
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= this.config.retryCount; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
+
+        const response = await fetch(url, {
+          method: endpoint.method,
+          headers,
+          body: formData,
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data as ApiResponse<FileParseResponse>;
+      } catch (error) {
+        lastError = error as Error;
+        if (attempt < this.config.retryCount) {
+          await this.delay(this.config.retryDelay * (attempt + 1));
+        }
+      }
+    }
+
+    return this.createErrorResponse(
+      'API_ERROR',
+      lastError?.message || '请求失败'
+    );
   }
 
   async qaInteraction(request: Omit<QAInteractionRequest, 'stepType'>): Promise<ApiResponse<QAInteractionResponse>> {

@@ -15,6 +15,7 @@ interface UploadedFile {
   name: string;
   size: number;
   type: string;
+  file: File; // 保存真实的 File 对象
 }
 
 export const FileParseUI: React.FC<FileParseUIProps> = ({ step, onSubmit, onUseMock }) => {
@@ -45,6 +46,7 @@ export const FileParseUI: React.FC<FileParseUIProps> = ({ step, onSubmit, onUseM
         name: file.name,
         size: file.size,
         type: file.type,
+        file: file,
       });
     }
   }, []);
@@ -56,6 +58,7 @@ export const FileParseUI: React.FC<FileParseUIProps> = ({ step, onSubmit, onUseM
         name: file.name,
         size: file.size,
         type: file.type,
+        file: file,
       });
     }
   }, []);
@@ -65,19 +68,12 @@ export const FileParseUI: React.FC<FileParseUIProps> = ({ step, onSubmit, onUseM
     
     setIsUploading(true);
     
-    // 模拟上传延迟
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // TODO: 这里预留真实文件上传逻辑
-    // 实际实现时，应该：
-    // 1. 将文件上传到存储服务
-    // 2. 获取文件URL
-    // 3. 将URL传递给onSubmit
-    
     onSubmit({
-      file: selectedFile,
+      file: selectedFile.file, // 传递真实的 File 对象
+      name: selectedFile.name,
+      size: selectedFile.size,
+      type: selectedFile.type,
       uploadedAt: new Date().toISOString(),
-      // url: 'https://storage.example.com/...' // 真实URL
     });
     
     setIsUploading(false);

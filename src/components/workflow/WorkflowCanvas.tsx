@@ -14,6 +14,12 @@ import {
   Loader2,
   ArrowDown,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 const stepTypeIcons: Record<StepType, React.ElementType> = {
   file_parse: FileText,
@@ -44,6 +50,7 @@ const statusStyles: Record<StepStatus, { border: string; bg: string; icon: React
 interface CanvasStepNodeProps {
   step: WorkflowStep;
   status?: StepStatus;
+  result?: StepExecutionResult;
   subWorkflowResults?: StepExecutionResult[];
   getWorkflow: (id: string) => ReviewWorkflow | undefined;
   isLast: boolean;
@@ -52,6 +59,7 @@ interface CanvasStepNodeProps {
 const CanvasStepNode: React.FC<CanvasStepNodeProps> = ({
   step,
   status = 'pending',
+  result,
   subWorkflowResults,
   getWorkflow,
   isLast,
@@ -66,45 +74,89 @@ const CanvasStepNode: React.FC<CanvasStepNodeProps> = ({
     ? getWorkflow(step.subWorkflowConfig.workflowId)
     : null;
 
-  return (
-    <div className="flex flex-col items-center">
-      {/* Step Node */}
-      <div
-        className={cn(
-          'relative w-[220px] rounded-lg border-2 p-3 transition-all duration-300 shadow-sm',
-          statusStyle.border,
-          statusStyle.bg,
-          status === 'running' && 'ring-2 ring-blue-400 ring-offset-2'
-        )}
-      >
-        {/* Status indicator */}
-        <div className={cn(
-          'absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center shadow-sm',
-          status === 'pending' && 'bg-muted',
-          status === 'running' && 'bg-blue-500',
-          status === 'success' && 'bg-green-500',
-          status === 'failed' && 'bg-red-500',
-        )}>
-          <StatusIcon className={cn(
-            'h-3.5 w-3.5',
-            status === 'pending' ? 'text-muted-foreground' : 'text-white',
-            status === 'running' && 'animate-spin'
-          )} />
-        </div>
+  // 构建 tooltip 内容
+  const getTooltipContent = () => {
+    if (status === 'pending') return '等待执行';
+    if (status === 'running') return '正在执行...';
+    
+    const parts: string[] = [];
+    
+    if (status === 'success') {
+      parts.push('✅ 审核通过');
+    } else if (status === 'failed') {
+      parts.push('❌ 审核未通过');
+    }
+    
+    if (result?.message) {
+      parts.push(result.message);
+    }
+    
+    if (result?.data?.auditResult) {
+      const audit = result.data.auditResult;
+      if (!audit.passed && audit.reason) {
+        parts.push(`原因: ${audit.reason}`);
+      }
+      if (audit.details) {
+        parts.push(`详情: ${audit.details}`);
+      }
+    }
+    
+    return parts.join('\n') || (status === 'success' ? '执行成功' : '执行失败');
+  };
 
-        {/* Content */}
-        <div className="flex items-start gap-2">
-          <div className={cn('w-8 h-8 rounded flex items-center justify-center shrink-0', typeStyle)}>
-            <Icon className="h-4 w-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm truncate">{step.name}</p>
-            <p className="text-xs text-muted-foreground truncate">
-              {step.description || (isSubWorkflow ? subWorkflow?.name : '')}
-            </p>
-          </div>
+  const stepNode = (
+    <div
+      className={cn(
+        'relative w-[220px] rounded-lg border-2 p-3 transition-all duration-300 shadow-sm cursor-pointer',
+        statusStyle.border,
+        statusStyle.bg,
+        status === 'running' && 'ring-2 ring-blue-400 ring-offset-2'
+      )}
+    >
+      {/* Status indicator */}
+      <div className={cn(
+        'absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center shadow-sm',
+        status === 'pending' && 'bg-muted',
+        status === 'running' && 'bg-blue-500',
+        status === 'success' && 'bg-green-500',
+        status === 'failed' && 'bg-red-500',
+      )}>
+        <StatusIcon className={cn(
+          'h-3.5 w-3.5',
+          status === 'pending' ? 'text-muted-foreground' : 'text-white',
+          status === 'running' && 'animate-spin'
+        )} />
+      </div>
+
+      {/* Content */}
+      <div className="flex items-start gap-2">
+        <div className={cn('w-8 h-8 rounded flex items-center justify-center shrink-0', typeStyle)}>
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm truncate">{step.name}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {step.description || (isSubWorkflow ? subWorkflow?.name : '')}
+          </p>
         </div>
       </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col items-center">
+      {/* Step Node with Tooltip */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {stepNode}
+        </TooltipTrigger>
+        <TooltipContent 
+          side="right" 
+          className="max-w-[300px] whitespace-pre-wrap"
+        >
+          {getTooltipContent()}
+        </TooltipContent>
+      </Tooltip>
 
       {/* Sub-workflow expansion */}
       {isSubWorkflow && subWorkflow && (
@@ -159,6 +211,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   getWorkflow,
 }) => {
   return (
+    <TooltipProvider>
     <div className="h-full w-full overflow-auto bg-gradient-to-br from-muted/30 to-muted/10 p-6">
       <div className="min-w-fit flex flex-col items-center">
         {/* Workflow Header */}
@@ -181,6 +234,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 key={step.id}
                 step={step}
                 status={result?.status}
+                result={result}
                 subWorkflowResults={result?.subWorkflowResults}
                 getWorkflow={getWorkflow}
                 isLast={index === workflow.steps.length - 1}
@@ -210,6 +264,7 @@ export const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         </div>
       </div>
     </div>
+    </TooltipProvider>
   );
 };
 

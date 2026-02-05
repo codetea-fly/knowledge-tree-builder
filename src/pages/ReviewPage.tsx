@@ -27,6 +27,7 @@ import {
 import { Link } from 'react-router-dom';
 import { WorkflowCanvas } from '@/components/workflow/WorkflowCanvas';
 import { StepInteractionPanel, isInteractiveStep, BackgroundUploadPanel, UploadedFileInfo } from '@/components/review';
+import { stepExecutorRegistry } from '@/executors';
 
 const ReviewPageContent: React.FC = () => {
   const { library } = useWorkflow();
@@ -55,12 +56,14 @@ const ReviewPageContent: React.FC = () => {
     // 检查是否需要上传背景文件
     const hasBackgroundConfig = selectedWorkflow.backgroundConfig?.requiredFiles?.length;
     
-    if (hasBackgroundConfig && !backgroundFiles) {
+    let currentBackgroundFiles = backgroundFiles;
+    if (hasBackgroundConfig && !currentBackgroundFiles) {
       // 等待用户上传背景文件
       const uploadedFiles = await new Promise<Record<string, UploadedFileInfo>>((resolve) => {
         setIsPendingBackgroundUpload(true);
         backgroundUploadResolverRef.current = resolve;
       });
+      currentBackgroundFiles = uploadedFiles;
       setBackgroundFiles(uploadedFiles);
       setIsPendingBackgroundUpload(false);
     }
@@ -153,11 +156,61 @@ const ReviewPageContent: React.FC = () => {
           setCurrentInteractiveStep(null);
           setIsPendingUserInput(false);
           
-          // TODO: 将用户输入传递给执行器进行处理
-          // 现在使用模拟结果
-          const shouldFail = Math.random() < 0.2;
-          stepResult.status = shouldFail ? 'failed' : 'success';
-          stepResult.message = shouldFail ? '检查未通过，存在不符合项' : '检查通过';
+          // 使用执行器处理用户输入
+          console.log('step.stepType:', step.stepType);
+          console.log('registered types:', stepExecutorRegistry.getRegisteredTypes());
+          const executor = stepExecutorRegistry.get(step.stepType);
+          console.log('executor found:', executor);
+          if (executor) {
+            try {
+              const sharedData = {
+                sessionId: result.id,
+                // 审核背景说明（来自工作流配置）
+                reviewBackground: selectedWorkflow?.backgroundConfig?.description,
+                // 背景文件列表
+                backgroundFiles: currentBackgroundFiles ? Object.values(currentBackgroundFiles).map(f => ({
+                  fileName: f.name,
+                  textContent: f.textContent,
+                })) : undefined,
+              };
+              console.log('开始执行 executor.execute, userInput:', userInput);
+              console.log('sharedData:', sharedData);
+              const executorResult = await executor.execute({
+                step,
+                workflowId: selectedWorkflow?.id || '',
+                workflowName: selectedWorkflow?.name || '',
+                userInput,
+                sharedData,
+                callbacks: {
+                  onLog: (level, message) => console.log(`[${level}] ${message}`),
+                  onProgress: (progress, message) => {
+                    stepResult.message = message || `进度: ${progress}%`;
+                    updateResult();
+                  },
+                },
+              });
+              
+              console.log('executor.execute 完成, result:', executorResult);
+              stepResult.status = executorResult.success ? 'success' : 'failed';
+              stepResult.message = executorResult.message;
+              stepResult.data = executorResult.data;
+              
+              // 如果审核不通过，提取审核结果
+              if (!executorResult.success && executorResult.data?.auditResult) {
+                stepResult.message = executorResult.data.auditResult.reason || executorResult.message;
+              }
+            } catch (error) {
+              console.error('executor.execute 抛出异常:', error);
+              stepResult.status = 'failed';
+              stepResult.message = `执行失败: ${error}`;
+            }
+          } else {
+            // 没有执行器，使用模拟结果
+            console.log("没有执行器，使用模拟结果");
+            const shouldFail = Math.random() < 0.2;
+            stepResult.status = shouldFail ? 'failed' : 'success';
+            stepResult.message = shouldFail ? '检查未通过，存在不符合项' : '检查通过';
+          }
           
           console.log('用户输入数据:', userInput);
         } else {
