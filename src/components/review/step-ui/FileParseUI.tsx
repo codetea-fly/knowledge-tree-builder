@@ -24,7 +24,7 @@ export const FileParseUI: React.FC<FileParseUIProps> = ({ step, onSubmit, onUseM
   const [isUploading, setIsUploading] = useState(false);
 
   const config = step.checkConfig;
-  const acceptedTypes = config?.fileTypes || ['pdf', 'doc', 'docx', 'xls', 'xlsx'];
+  const acceptedTypes = config?.fileTypes || ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'];
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
