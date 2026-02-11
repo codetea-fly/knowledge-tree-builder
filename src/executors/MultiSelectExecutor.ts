@@ -48,25 +48,35 @@ export class MultiSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
       });
     }
     
-    // 添加用户选择
-    apiRequest.selectedValues = Array.isArray(context.userInput) 
-      ? context.userInput.map(String)
-      : [String(context.userInput)];
+    // 添加用户选择（UI提交的是对象 { selectedValues, selectedLabels }）
+    const userInput = context.userInput as { selectedValues?: string[] } | string[] | unknown;
+    const selectedValues = Array.isArray(userInput)
+      ? userInput.map(String)
+      : (userInput as { selectedValues?: string[] })?.selectedValues || [String(userInput)];
+    apiRequest.selectedValues = selectedValues;
     
     this.updateProgress(context, 50, '正在验证选择...');
+    
+    // 检查选项有效性
+    const selectedOptions = options.filter(opt => selectedValues.includes(opt.value));
+    const hasCorrectConfig = options.some(opt => opt.isCorrect !== undefined);
+    
+    if (selectedOptions.length === 0) {
+      return this.createErrorOutput('选择无效', '未找到对应选项');
+    }
+    
+    let useLocalValidation = false;
     
     try {
       // 调用后端API
       const response = await stepApiClient.multiSelect(apiRequest);
       
-      this.updateProgress(context, 100, '选择完成');
-      
       if (response.success && response.data?.success) {
+        this.updateProgress(context, 100, '选择完成');
         this.log(context, 'info', `多选完成，得分: ${response.data.data?.score}`);
         return this.createSuccessOutput(response.data.message, response.data.data);
-      } else {
-        // 检查是否需要用户操作
-        if (response.data?.requiresUserAction) {
+      } else if (response.data) {
+        if (response.data.requiresUserAction) {
           return {
             success: false,
             message: response.data.message,
@@ -74,14 +84,55 @@ export class MultiSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
             userActionConfig: response.data.userActionConfig,
           };
         }
-        
+        this.updateProgress(context, 100, '选择完成');
         this.log(context, 'warn', `多选验证未通过: ${response.message}`);
-        return this.createErrorOutput(response.data?.message || '选择不完全正确', response.message);
+        return this.createErrorOutput(response.data.message || '选择不完全正确', response.message);
+      } else {
+        useLocalValidation = true;
       }
     } catch (error) {
-      this.log(context, 'error', `多选处理失败: ${error}`);
-      return this.createErrorOutput('处理失败', String(error));
+      useLocalValidation = true;
+      this.log(context, 'warn', `API调用异常: ${error}`);
     }
+    
+    // 本地验证降级
+    if (useLocalValidation) {
+      this.log(context, 'info', '使用本地验证');
+      
+      const correctOptions = options.filter(opt => opt.isCorrect === true);
+      const correctValues = correctOptions.map(opt => opt.value);
+      
+      // 判断用户选择是否完全匹配正确答案
+      const allCorrectSelected = correctValues.every(v => selectedValues.includes(v));
+      const noWrongSelected = selectedValues.every(v => correctValues.includes(v));
+      const isCorrect = hasCorrectConfig ? (allCorrectSelected && noWrongSelected) : true;
+      
+      this.updateProgress(context, 100, '选择完成');
+      
+      if (isCorrect || !hasCorrectConfig) {
+        return this.createSuccessOutput(
+          hasCorrectConfig ? '选择正确' : '已选择',
+          {
+            selectedValues,
+            selectedLabels: selectedOptions.map(opt => opt.label),
+            isCorrect: hasCorrectConfig ? true : null,
+          }
+        );
+      } else {
+        return {
+          success: false,
+          message: '选择不完全正确',
+          data: {
+            selectedValues,
+            selectedLabels: selectedOptions.map(opt => opt.label),
+            isCorrect: false,
+            correctAnswers: correctOptions.map(opt => ({ value: opt.value, label: opt.label })),
+          },
+        };
+      }
+    }
+    
+    return this.createErrorOutput('未知错误', '验证流程异常');
   }
   
   validateConfig(config: CheckItemConfig): { valid: boolean; errors: string[] } {
