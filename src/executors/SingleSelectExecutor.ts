@@ -46,10 +46,22 @@ export class SingleSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
       });
     }
     
-    // 添加用户选择
-    apiRequest.selectedValue = String(context.userInput);
+    // 添加用户选择（UI提交的是对象 { selectedValue, selectedLabel }）
+    const userInput = context.userInput as { selectedValue?: string; isMock?: boolean } | string;
+    const selectedValue = typeof userInput === 'string' 
+      ? userInput 
+      : userInput?.selectedValue || '';
+    apiRequest.selectedValue = selectedValue;
     
     this.updateProgress(context, 50, '正在验证选择...');
+    
+    // 在前端验证正确答案
+    const selectedOption = options.find(opt => opt.value === selectedValue);
+    const hasCorrectConfig = options.some(opt => opt.isCorrect !== undefined);
+    
+    if (!selectedOption) {
+      return this.createErrorOutput('选择无效', '未找到对应选项');
+    }
     
     try {
       // 调用后端API
@@ -61,7 +73,6 @@ export class SingleSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
         this.log(context, 'info', `选择完成: ${response.data.data?.selectedLabel}`);
         return this.createSuccessOutput(response.data.message, response.data.data);
       } else {
-        // 检查是否需要用户操作
         if (response.data?.requiresUserAction) {
           return {
             success: false,
@@ -75,8 +86,35 @@ export class SingleSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
         return this.createErrorOutput(response.data?.message || '选择错误', response.message);
       }
     } catch (error) {
-      this.log(context, 'error', `单选处理失败: ${error}`);
-      return this.createErrorOutput('处理失败', String(error));
+      // API调用失败时，使用前端本地验证作为降级
+      this.log(context, 'warn', `API调用失败，使用本地验证: ${error}`);
+      
+      const isCorrect = hasCorrectConfig ? (selectedOption.isCorrect === true) : true;
+      const correctOption = options.find(opt => opt.isCorrect === true);
+      
+      this.updateProgress(context, 100, '选择完成');
+      
+      if (isCorrect || !hasCorrectConfig) {
+        return this.createSuccessOutput(
+          hasCorrectConfig ? '选择正确' : '已选择',
+          {
+            selectedValue,
+            selectedLabel: selectedOption.label,
+            isCorrect: hasCorrectConfig ? true : null,
+          }
+        );
+      } else {
+        return {
+          success: false,
+          message: '选择错误',
+          data: {
+            selectedValue,
+            selectedLabel: selectedOption.label,
+            isCorrect: false,
+            correctAnswer: correctOption ? { value: correctOption.value, label: correctOption.label } : undefined,
+          },
+        };
+      }
     }
   }
   
