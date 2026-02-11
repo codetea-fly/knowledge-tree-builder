@@ -164,7 +164,7 @@ const ReviewPageContent: React.FC = () => {
           if (executor) {
             try {
               const sharedData = {
-                sessionId: result.id,
+                sessionId: result.workflowId,
                 // 审核背景说明（来自工作流配置）
                 reviewBackground: selectedWorkflow?.backgroundConfig?.description,
                 // 背景文件列表
@@ -193,11 +193,13 @@ const ReviewPageContent: React.FC = () => {
               console.log('executor.execute 完成, result:', executorResult);
               stepResult.status = executorResult.success ? 'success' : 'failed';
               stepResult.message = executorResult.message;
-              stepResult.data = executorResult.data;
+              const execData = executorResult.data as Record<string, unknown> | undefined;
+              stepResult.data = execData as StepExecutionResult['data'];
               
               // 如果审核不通过，提取审核结果
-              if (!executorResult.success && executorResult.data?.auditResult) {
-                stepResult.message = executorResult.data.auditResult.reason || executorResult.message;
+              if (!executorResult.success && execData?.auditResult) {
+                const auditResult = execData.auditResult as { reason?: string };
+                stepResult.message = auditResult.reason || executorResult.message;
               }
             } catch (error) {
               console.error('executor.execute 抛出异常:', error);

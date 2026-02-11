@@ -137,6 +137,8 @@ export interface FileParseRequest extends StepExecutionRequest {
   reviewBackground?: string;
   backgroundFiles?: Array<{ fileName?: string; name?: string; textContent?: string; content?: string }>;
   checkConfig?: { parseRules?: string; fileTypes?: string[] };
+  // 文本内容（前端读取后直接传递）
+  textContent?: string;
 }
 
 export interface FileParseResponse extends StepExecutionResponse {
