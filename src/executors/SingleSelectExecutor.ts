@@ -63,17 +63,20 @@ export class SingleSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
       return this.createErrorOutput('选择无效', '未找到对应选项');
     }
     
+    let useLocalValidation = false;
+    
     try {
       // 调用后端API
       const response = await stepApiClient.singleSelect(apiRequest);
       
-      this.updateProgress(context, 100, '选择完成');
-      
+      // 检查API是否真正返回了有效数据（而非连接错误的包装响应）
       if (response.success && response.data?.success) {
+        this.updateProgress(context, 100, '选择完成');
         this.log(context, 'info', `选择完成: ${response.data.data?.selectedLabel}`);
         return this.createSuccessOutput(response.data.message, response.data.data);
-      } else {
-        if (response.data?.requiresUserAction) {
+      } else if (response.data) {
+        // API返回了有效响应但验证未通过
+        if (response.data.requiresUserAction) {
           return {
             success: false,
             message: response.data.message,
@@ -81,13 +84,21 @@ export class SingleSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
             userActionConfig: response.data.userActionConfig,
           };
         }
-        
+        this.updateProgress(context, 100, '选择完成');
         this.log(context, 'warn', `选择验证未通过: ${response.message}`);
-        return this.createErrorOutput(response.data?.message || '选择错误', response.message);
+        return this.createErrorOutput(response.data.message || '选择错误', response.message);
+      } else {
+        // API连接失败（没有data），使用本地验证
+        useLocalValidation = true;
       }
     } catch (error) {
-      // API调用失败时，使用前端本地验证作为降级
-      this.log(context, 'warn', `API调用失败，使用本地验证: ${error}`);
+      useLocalValidation = true;
+      this.log(context, 'warn', `API调用异常: ${error}`);
+    }
+    
+    // 本地验证降级
+    if (useLocalValidation) {
+      this.log(context, 'info', '使用本地验证');
       
       const isCorrect = hasCorrectConfig ? (selectedOption.isCorrect === true) : true;
       const correctOption = options.find(opt => opt.isCorrect === true);
@@ -116,6 +127,8 @@ export class SingleSelectExecutor extends BaseStepExecutor<CheckItemConfig> {
         };
       }
     }
+    
+    return this.createErrorOutput('未知错误', '验证流程异常');
   }
   
   validateConfig(config: CheckItemConfig): { valid: boolean; errors: string[] } {
