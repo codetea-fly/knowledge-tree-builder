@@ -39,23 +39,28 @@ export class QAInteractionExecutor extends BaseStepExecutor<CheckItemConfig> {
       });
     }
     
-    // 添加用户答案
-    apiRequest.answer = String(context.userInput);
+    // 解析用户输入（UI提交的是对象 { answer, submittedAt }）
+    const userInput = context.userInput as { answer?: string } | string | unknown;
+    const answer = typeof userInput === 'string'
+      ? userInput
+      : (userInput as { answer?: string })?.answer || String(userInput);
+    
+    apiRequest.answer = answer;
     
     this.updateProgress(context, 50, '正在验证答案...');
+    
+    let useLocalValidation = false;
     
     try {
       // 调用后端API
       const response = await stepApiClient.qaInteraction(apiRequest);
       
-      this.updateProgress(context, 100, '问答完成');
-      
       if (response.success && response.data?.success) {
+        this.updateProgress(context, 100, '问答完成');
         this.log(context, 'info', '问答验证通过');
         return this.createSuccessOutput('回答验证通过', response.data.data);
-      } else {
-        // 检查是否需要用户操作
-        if (response.data?.requiresUserAction) {
+      } else if (response.data) {
+        if (response.data.requiresUserAction) {
           return {
             success: false,
             message: response.data.message,
@@ -63,14 +68,66 @@ export class QAInteractionExecutor extends BaseStepExecutor<CheckItemConfig> {
             userActionConfig: response.data.userActionConfig,
           };
         }
-        
+        this.updateProgress(context, 100, '问答完成');
         this.log(context, 'warn', `问答验证未通过: ${response.message}`);
-        return this.createErrorOutput('回答未通过验证', response.message);
+        return this.createErrorOutput(response.data.message || '回答未通过验证', response.message);
+      } else {
+        useLocalValidation = true;
       }
     } catch (error) {
-      this.log(context, 'error', `问答处理失败: ${error}`);
-      return this.createErrorOutput('问答处理失败', String(error));
+      useLocalValidation = true;
+      this.log(context, 'warn', `API调用异常，使用本地验证: ${error}`);
     }
+    
+    // 本地验证降级
+    if (useLocalValidation) {
+      this.log(context, 'info', '使用本地验证');
+      
+      const expectedAnswer = config?.expectedAnswer?.trim();
+      const trimmedAnswer = answer.trim();
+      
+      if (!trimmedAnswer) {
+        return this.createErrorOutput('回答为空', '请输入您的回答');
+      }
+      
+      // 如果配置了预期答案，进行匹配验证
+      if (expectedAnswer) {
+        // 不区分大小写的包含匹配
+        const isCorrect = trimmedAnswer.toLowerCase().includes(expectedAnswer.toLowerCase())
+          || expectedAnswer.toLowerCase().includes(trimmedAnswer.toLowerCase());
+        
+        this.updateProgress(context, 100, '问答完成');
+        
+        if (isCorrect) {
+          return this.createSuccessOutput('回答正确', {
+            question,
+            answer: trimmedAnswer,
+            isCorrect: true,
+          });
+        } else {
+          return {
+            success: false,
+            message: '回答不正确',
+            data: {
+              question,
+              answer: trimmedAnswer,
+              isCorrect: false,
+              expectedAnswer,
+            },
+          };
+        }
+      }
+      
+      // 没有预期答案，仅收集回答
+      this.updateProgress(context, 100, '问答完成');
+      return this.createSuccessOutput('已收到回答', {
+        question,
+        answer: trimmedAnswer,
+        isCorrect: null,
+      });
+    }
+    
+    return this.createErrorOutput('未知错误', '验证流程异常');
   }
   
   validateConfig(config: CheckItemConfig): { valid: boolean; errors: string[] } {
