@@ -7,6 +7,7 @@ import { ChatInterface } from '@/components/ChatInterface';
 import { ConfigSidebar } from '@/components/ConfigSidebar';
 import { TemplateConfig, TemplateConfigData, defaultTemplateConfigData } from '@/components/TemplateConfig';
 import { PlaceholderConfig } from '@/components/PlaceholderConfig';
+import { DataSourceConfig } from '@/components/datasource';
 import { WorkflowConfig } from '@/components/WorkflowConfig';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -312,11 +313,9 @@ const EditorContent: React.FC = () => {
         );
       case 'data-source':
         return (
-          <PlaceholderConfig
-            configId="data-source"
-            title="数据源配置"
-            description="配置外部数据源连接，如数据库、API等"
-          />
+          <div className="flex-1 bg-card overflow-hidden">
+            <DataSourceConfig />
+          </div>
         );
       default:
         return null;
