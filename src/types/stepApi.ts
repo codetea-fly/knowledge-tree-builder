@@ -173,6 +173,19 @@ export interface FileParseResponse extends StepExecutionResponse {
 
 // ==================== 问答交互API ====================
 
+// 单轮问答记录
+export interface QARoundRecord {
+  questionId: string;
+  question: string;
+  answer: string;
+  isFollowUp?: boolean;
+  validation?: {
+    isValid: boolean;
+    score?: number;
+    feedback?: string;
+  };
+}
+
 export interface QAInteractionRequest extends StepExecutionRequest {
   stepType: 'qa_interaction';
   // 用户回答
@@ -186,6 +199,14 @@ export interface QAInteractionRequest extends StepExecutionRequest {
     // AI验证提示词
     aiValidationPrompt?: string;
   };
+  // 多轮问答：当前问题ID
+  currentQuestionId?: string;
+  // 多轮问答：历史问答记录
+  qaHistory?: QARoundRecord[];
+  // 多轮问答：是否需要AI追问
+  requestFollowUp?: boolean;
+  // AI追问提示词
+  followUpPrompt?: string;
 }
 
 export interface QAInteractionResponse extends StepExecutionResponse {
@@ -205,6 +226,10 @@ export interface QAInteractionResponse extends StepExecutionResponse {
         suggestions?: string[];
       };
     };
+    // AI追问的问题
+    followUpQuestion?: string;
+    // 是否需要继续追问
+    needsFollowUp?: boolean;
   };
 }
 

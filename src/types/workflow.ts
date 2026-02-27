@@ -33,17 +33,32 @@ export const stepTypeLabels: Record<StepType, string> = {
   sub_workflow: '子流程',
 };
 
+// 单个问答题目配置
+export interface QAQuestionItem {
+  id: string;
+  question: string;
+  expectedAnswer?: string;
+  // 是否启用AI追问（动态追问模式）
+  enableFollowUp?: boolean;
+  // AI追问的提示词
+  followUpPrompt?: string;
+  // 最大追问轮次
+  maxFollowUpRounds?: number;
+}
+
 // 检查项配置
 export interface CheckItemConfig {
   // 文件解析配置
   fileTypes?: string[];
   parseRules?: string;
   
-  // 问答交互配置
+  // 问答交互配置（单题兼容）
   question?: string;
   expectedAnswer?: string;
   useAiValidation?: boolean;
   aiValidationPrompt?: string;
+  // 多轮问答配置
+  qaQuestions?: QAQuestionItem[];
   
   // 单选/多选配置
   options?: { label: string; value: string; description?: string; isCorrect?: boolean }[];
